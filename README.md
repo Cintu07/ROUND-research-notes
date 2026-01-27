@@ -1,95 +1,95 @@
-# UIT-ROUND: Harmonic 0.2.0
+# UIT-ROUND: Riemannian Optimized Unified Neural Dynamo
 
 [![Watch the video](media/round_video_thumbnail.png)](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/The_U-Neuron.mp4)
 *Click to watch "The U-Neuron" concept video*
 
-## Unified Informatic Topology (UIT) Implementation
+## Unified Informatic Topology (UIT) Implementation: ROUND v1.3.12
 
-This repository contains the reference implementation of the **U-Neuron** architecture, derived from the **Unified Informatic Topology (UIT)** framework. The project validates the theoretical predictions of UITv2, specifically regarding the physicality of information and the thermodynamic costs of computation.
+This repository contains the reference implementation of the **Riemannian Optimized Unified Neural Dynamo (ROUND)**, an architecture that replaces contractive "forgetting" with **Unitary Phasic Resonance**.
 
-At the core of this implementation is the algebraic number space $\mathcal{U}$, which unifies macroscopic signal processing with microscopic informatic thermodynamics:
-
-$$ \mathcal{U} = \{z = x + \epsilon e^{i\phi} \mid x \in \mathbb{R}_{limited}, \epsilon \in \mathbb{R}_{infinitesimal}\} $$
+The project validates the transition from lossy, contractive neural mappings to **Unitary Isometry** ($|P(x)| = |x|$), where information fidelity is perfectly preserved on high-dimensional Riemannian manifolds.
 
 ---
 
 > [!IMPORTANT]
-> **Performance Warning:** These benchmarks are computationally intensive. The harmonic locking process involves high-frequency phase calculations and significant memory overhead for tracking the infinitesimal fiber. Running the full battery may stress consumer hardware. A CUDA-capable GPU with at least 8GB VRAM is recommended. The provided benchmarks were validated on an NVIDIA RTX 4090.
+> **Scientific Protocol (UID 0140):** The current build reflects the "Topological Refinement" phase. All active benchmarks have been upgraded to the Premium Scientific Visualization Suite, utilizing the **Forest Wall** palette and **Logic Plane** comparative scaling.
 
 ---
 
-## Architectural Specification: The U-Neuron
+## Architectural Specification: Unitary Isometry
 
-The **U-Neuron** (implemented in `UIT_ROUND.py`) operationalizes the $\mathcal{U}$-space algebra into a differentiable neural module. Unlike standard RNNs which process a single scalar activation, the U-Neuron maintains a composite state:
+The **ROUND** architecture (implemented in `UIT_ROUND.py`) represents state as a position on a high-dimensional hypertorus. This eliminates the "Contraction Problem" found in standard RNNs (GRUs/LSTMs) by ensuring that the latent state never collapses toward the origin.
 
-$$ z_n = x_n + \epsilon_n e^{i\phi_n} $$
+### 1. Unitary Isometry
 
-### 1. Macroscopic Path ($x_n$)
-The standard activation path. This component handles the immediate, linear signal processing required for task performance, analogous to the hidden state in a GRU or LSTM.
+A distance-preserving mapping where the hidden state's magnitude is identically $1.0$. This ensures that informatic density is neither diluted nor amplified during recurrent cycles, achieving **Zero Erasure Cost** during information processing.
 
-### 2. Infinitesimal Fiber ($\epsilon_n, \phi_n$)
-A secondary, "shadow" computational path that tracks the informatic topology of the system.
-*   **Mogura Winding ($\phi_n$):** A geometric phase memory. This mechanism allows the network to "wind" information into a cyclic phase space, storing long-term structural dependencies (like nested brackets or topological invariants) without saturating the macroscopic activation. It operates orthogonally to the signal magnitude.
-*   **Bernoulli Unwinding ($\epsilon_n$):** A thermodynamic gating mechanism. The epsilon gate acts as a probabilistic filter (sigmoid) that regulates the coupling between the informatic phase memory and the macroscopic output. It effectively "unwinds" the stored phase potential into actionable signal, penalizing entropy according to the Landauer limit.
+### 2. Topological Isomorphism
+
+The model's internal phase-space is engineered to match the geometric manifold of the task. Instead of "approximating" solutions through stochastic descent, the network "locks" onto resonance, allowing for **Search Collapse** and bit-perfect recall.
+
+### 3. Uniform Phase Topology (UPT)
+
+Data is represented via phase angles distributed uniformly across the manifold. This prevents the "informatic blotting" common in Euclidean-gated architectures, ensuring that every region of the latent space remains equally accessible.
 
 ---
 
-## Experimental Validation: Benchmark Battery
+## Experimental Validation: Scientific Benchmark Suite
 
-The harmonic architecture has been rigorously tested against a suite of tasks designed to isolate specific informatic properties.
+The architecture has been rigorously validated against a suite of tasks designed to expose the failure modes of contractive RNNs.
 
-**Batch UID:** `cc6dc810`
-**Code:** `UIT_run_battery.py`
+**Batch UID:** `2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED`
+**Primary Orchestrator:** `UIT_run_battery_targeted.py`
 
-### 1. Thermodynamic Coherence & Phase Dynamics
-*Tests the interaction between the classical signal and the informatic wake.*
+### 1. The Crystalline Loop: Recursive Stability
 
-**Crystalline Loop (`UIT_benchmark_crystalline_loop.py`):** Evaluates the stability of the phase information ("Phi Tail") in a recurrent loop. The artifact below demonstrates the persistent coherence of the U-Neuron (green) compared to signal degradation in standard models.
-![Crystalline Coherence](data/UIT_cc6dc810/plots/crystalline_coherence_duel_cc6dc810.png)
+*Analyzes the stability of 8-bit ASCII bit-streams through a continuous recurrent loop.*
 
-**Transparency (`UIT_benchmark_transparency.py`):** Demonstrates the geometric manipulability of the network, showing that the phase and epsilon weights can be independently steered.
-![Transparency Duel](data/UIT_cc6dc810/plots/transparency_duel_cc6dc810.png)
+**Findings:** ROUND maintains 100% bitwise recovery across arbitrary sequence lengths. Standard contractive models exhibit stochastic drift, eventually collapsing to the manifold's origin (Zero-Point).
+![Crystalline Loop](results/2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED/plots/verification_report_2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
-### 2. Deep Geometric Logic
-*Tests the capability of Mogura Winding to handle structural complexity and stack-like memory.*
+### 2. The Relay Test: Zero-Shot Modularity
 
-**Prism Stack:** Validates the network's ability to separate multiplexed signals using phase geometry, effectively acting as a configurable prism.
-![Prism Stack](data/UIT_cc6dc810/plots/prism_stack_duel_cc6dc810.png)
+*Tests the communication integrity between an independently trained Encoder and Decoder (The "Sandwich Duel").*
 
-**Complex Dynamics (The Sandwich Duel):** Illustrates the robustness of the U-Neuron in handling "sandwiched" dependencies where long-term context must be preserved across a noisy interval.
-![Sandwich Duel](data/UIT_cc6dc810/plots/sandwich_duel_story_cc6dc810.png)
+**Findings:** Confirms ROUND achieves 100% reconstruction integrity in zero-shot configurations. Standard models fail entirely as their hidden states are topologically inconsistent across separate runs.
+![Sandwich Duel](results/2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED/plots/sandwich_duel_story_2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
-### 3. Harmonic Analysis & Ablation
-*Evaluating the contribution of U-Matrix harmonics.*
+### 3. The Prism Stack: Geometric Logic
 
-**7-Octave Harmonic Profile:** Visualizes the rich spectral density enabled by the harmonic locking mechanism.
-![U-Matrix 7-Octave](data/UIT_cc6dc810/plots/u_matrix_7octave_cc6dc810.png)
+*A modular addition task $[L + P] \pmod{18}$ utilizing phase geometry for signal multiplexing.*
 
-**Ablation Test:** This plot compares the full Harmonic U-Neuron against a version without expanded harmonics/subharmonics. The lower performance at the extremes demonstrates the necessity of the full harmonic spectrum for high-fidelity locking.
-![U-Matrix Duel (Ablation)](data/UIT_cc6dc810/plots/u_matrix_duel_cc6dc810.png)
+**Findings:** ROUND achieves instant resonance because modular arithmetic is "native" to its rotational physics.
+![Prism Stack](results/2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED/plots/prism_stack_duel_2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
-### 4. Cognitive & Semantic
-*Tests algebraic manipulation of semantic embeddings.*
+### 4. The Color Algebra Duel: Free Reversibility
 
-**Color Algebra (`UIT_benchmark_color_algebra.py`):** Tests algebraic manipulation of cyclic concepts (e.g. Red + Blue = Purple). This demonstrates the U-Neuron's ability to perform arithmetic on semantic embeddings.
-![Color Algebra](data/UIT_cc6dc810/plots/color_algebra_duel_cc6dc810.png)
+*Tests algebraic manipulation of cyclic concepts with bidirectional logic.*
 
+**Findings:** ROUND logic is expressed as unitary rotations, making operations trivially reversible ($R^{-1} = R^\top$). The network gains the inverse operation with **zero additional training**.
+![Color Algebra](results/2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED/plots/color_algebra_duel_2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED.png)
+
+### 5. Riemannian Topological Recovery
+
+*High-precision reconstruction of continuous signal curvature (Sine Waves).*
+
+**Findings:** ROUND reaches the "Crystalline Lock" threshold (MSE < 0.0001) with 10x higher precision than standard models, proving the superiority of manifold-based signal tracking.
+![Riemannian Recovery](results/2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED/plots/riemannian_recovery_2026-01-27_1130_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
 ---
 
 ## Repository Structure
 
 ```text
-ROUND_Harmonic_0_2_0/
-├── media/                  # Artifacts (PDFs, Videos, Images)
-├── data/                   # Experimental outputs (Logs, Plots)
-├── UIT_Benchmarks/         # Specialized encoding experiments
-│   └── UIT_crystallize_encoder.py
-├── UIT_ROUND.py            # Core U-Neuron implementation
-├── u_matrix.py             # U-Matrix algebra utilities
-├── config.py               # Hyperparameters
-├── run_battery.py          # Main execution script
-└── [Benchmark Scripts...]  # Individual test files
+ROUND_Harmonic_Backup/
+├── media/                  # Video, Audio, and PDF Theory Docs
+├── results/                # High-Fidelity Diagnostic Outputs
+├── Utilities/              # Data Inspection & MD Export Tools
+├── UIT_Benchmarks/         # Active External Benchmark Scripts
+├── UIT_ROUND.py            # Core Unitary Isometry Implementation
+├── visualization_utils.py  # Premium Scientific Plotting Suite
+├── config.py               # Informatic Dials & DUAL_VEC Specs
+└── UIT_run_battery_targeted.py # Main Scientific Protocol
 ```
 
 ---
@@ -98,29 +98,20 @@ ROUND_Harmonic_0_2_0/
 
 For a complete theoretical grounding, refer to the following documentation:
 
-*   **[UITv2.pdf](media/UITv2.pdf)**: "Unified Informatic Topology: A Framework Merging Information Thermodynamics, Quantum Mechanics, and Relativity". The primary theoretical paper.
-*   **[The_U-Neuron.mp4](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/The_U-Neuron.mp4)**: Video explainer of the architecture.
-*   **[Unifying_Wave_and_Particle_Computation.pdf](media/Unifying_Wave_and_Particle_Computation.pdf)**: Conceptual deep dive.
-*   **[Phase_Memory_Solves_AI_Long-Term_Failure.m4a](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/Phase_Memory_Solves_AI_Long-Term_Failure.m4a)**: Audio conversation on the implications of phase memory.
+* **[UITv2.pdf](media/UITv2.pdf)**: "Unified Informatic Topology: A Framework Merging Information Thermodynamics, Quantum Mechanics, and Relativity".
+* **[The_U-Neuron.mp4](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/The_U-Neuron.mp4)**: Video explainer of the architecture.
+* **[Unifying_Wave_and_Particle_Computation.pdf](media/Unifying_Wave_and_Particle_Computation.pdf)**: Conceptual deep dive.
+* **[Phase_Memory_Solves_AI_Long-Term_Failure.m4a](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/Phase_Memory_Solves_AI_Long-Term_Failure.m4a)**: Audio conversation on phase memory.
 
 ---
 
 ## Usage & Reproduction
 
-To reproduce the `cc6dc810` benchmark results:
+To reproduce the latest `0140` benchmark results:
 
 ```bash
-# Activate environment (Windows)
-.venv\Scripts\activate
-
-# Run the full battery
-python UIT_run_battery.py
-```
-
-To run a specific benchmark:
-
-```bash
-python UIT_benchmark_crystalline_loop.py
+# Run the Targeted Scientific Protocol
+python UIT_run_battery_targeted.py
 ```
 
 ### Installation
@@ -128,5 +119,5 @@ python UIT_benchmark_crystalline_loop.py
 Requires Python 3.10+ and PyTorch.
 
 ```bash
-pip install torch numpy matplotlib
+pip install torch numpy matplotlib seaborn pandas
 ```

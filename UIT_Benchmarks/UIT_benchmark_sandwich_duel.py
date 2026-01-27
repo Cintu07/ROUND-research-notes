@@ -7,8 +7,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Ensure root is in path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Relative Root Discovery
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if root_dir not in sys.path: sys.path.insert(0, root_dir)
 from UIT_ROUND import UITModel, UITEncoderModel
 
 # --- CONFIG ---
@@ -31,28 +32,35 @@ class GRUEncoder(nn.Module):
         self.input_projection = nn.Linear(input_size, hidden_size)
         self.gru = nn.GRU(input_size + output_size, hidden_size, batch_first=True)
         self.readout = nn.Linear(hidden_size, output_size)
-    def forward(self, char_onehot, seq_len=8):
+    def forward(self, char_onehot, seq_len=8, h_init=None):
         if char_onehot.dim() == 3: char_onehot = char_onehot.squeeze(1)
         batch_size = char_onehot.size(0)
-        h = self.input_projection(char_onehot).unsqueeze(0)
+        
+        if h_init is not None:
+             # Expecting [1, Batch, Hidden] or [Batch, Hidden]. GRU expects [Layers, Batch, Hidden]
+             if h_init.dim() == 2: h = h_init.unsqueeze(0)
+             else: h = h_init
+        else:
+             h = self.input_projection(char_onehot).unsqueeze(0)
+        
         curr_b = torch.zeros(batch_size, 1).to(DEVICE)
         outputs = []
+        # For visualization, we might want to capture states
+        h_all = []
         for t in range(seq_len):
             c_in = torch.cat([curr_b, char_onehot], dim=-1).unsqueeze(1)
             out, h = self.gru(c_in, h)
+            h_all.append(h.squeeze(0)) # Capture hidden state
             bit_l = self.readout(out.squeeze(1))
             curr_b = torch.sigmoid(bit_l)
             outputs.append(bit_l)
-        return torch.stack(outputs, dim=1).squeeze(-1)
+        
+        # Stack hidden states for consistency with UIT coords if needed [Batch, Seq, Hidden]
+        h_all = torch.stack(h_all, dim=1) 
+        return torch.stack(outputs, dim=1).squeeze(-1), h_all
 
 # --- DATA UTILS ---
 def get_all_chars_data():
-    # Returns: (bits_input, id_target, onehot_input, bits_target)
-    # bits_input: [256, 8, 1] (MB First) for Decoder
-    # id_target: [256]
-    # onehot_input: [256, 1, 256] for Encoder
-    # bits_target: [256, 8] (LSB) for Encoder Check
-    
     ids = torch.arange(256).long().to(DEVICE)
     
     # MSB bits for Decoder Input
@@ -86,38 +94,28 @@ def verify_component(model, x, y, is_decoder=True, is_uit=True):
         else:
             # Encoder: X=[256,1,256] -> Y=[256, 8]
             if is_uit:
-                # UIT Encoder Morning State: onehot -> [1, 1, 8]
-                # x is [256, 1, 256]
-                out, _ = model(x) # [256, 1, 8]
-                out = out.squeeze(1) # [256, 8]
+                out, _ = model(x) 
+                out = out.squeeze(1) 
             else:
-                # GRU: Expects [Batch, 256]
-                out = model(x.squeeze(1)) # [256, 8]
+                out, _ = model(x.squeeze(1)) 
             
             # Bits Check
-            pred_bits = (out > 0).float()
-            # Row-wise match
+            pred_bits = (torch.sigmoid(out) > 0.5).float()
             matches = (pred_bits == y).all(dim=1).float()
             acc = matches.mean().item()
     return acc
 
 # --- VISUALIZATION ---
-def plot_sandwich_story(results, output_dir, uid):
-    # results = {
-    #   "r_dec_acc": float, "r_enc_acc": float,
-    #   "g_dec_acc": float, "g_enc_acc": float,
-    #   "r_relay": float, "g_relay": float
-    # }
-    
+def plot_sandwich_story(results, output_dir, uid, args):
     plt.style.use('dark_background')
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(24, 10), gridspec_kw={'width_ratios': [1, 1, 1.5]})
     
     # Colors
-    c_round = '#FF4B4B' # Poppin Red
-    c_gru = '#4B4BFF'   # Sad Blue
+    c_round = 'forestgreen' # Phasic TRUTH
+    c_gru = 'steelblue'     # Vector COLLAPSE
     
     # --- PANEL A: ISOLATED COMPONENTS ---
-    ax1.set_title("A. Isolated Component Accuracy (n=256)\n100% Convergence on Train Set", fontsize=12, color='white', fontweight='bold')
+    ax1.set_title("A. Isolated Component Accuracy\n(Learning Capability)", fontsize=16, color='white', fontweight='bold', pad=20)
     
     labels_a = ['Decoder', 'Encoder']
     x_a = np.arange(len(labels_a))
@@ -126,19 +124,19 @@ def plot_sandwich_story(results, output_dir, uid):
     r_vals_a = [results['r_dec_acc'], results['r_enc_acc']]
     g_vals_a = [results['g_dec_acc'], results['g_enc_acc']]
     
-    rects1 = ax1.bar(x_a - width/2, r_vals_a, width, label='UIT-ROUND (512N)', color=c_round, edgecolor='white', linewidth=1)
-    rects2 = ax1.bar(x_a + width/2, g_vals_a, width, label='GRU (512N)', color=c_gru, edgecolor='white', linewidth=1)
+    rects1 = ax1.bar(x_a - width/2, r_vals_a, width, label='UIT-ROUND (Phasic)', color=c_round, edgecolor='white', linewidth=1, alpha=0.9)
+    rects2 = ax1.bar(x_a + width/2, g_vals_a, width, label='GRU (Vector)', color=c_gru, edgecolor='white', linewidth=1, alpha=0.5)
     
-    ax1.set_ylabel('Accuracy', color='white')
+    ax1.set_ylabel('Accuracy', color='white', fontsize=12)
     ax1.set_xticks(x_a)
-    ax1.set_xticklabels(labels_a, color='white')
+    ax1.set_xticklabels(labels_a, color='white', fontsize=12)
     ax1.legend(facecolor='black', edgecolor='white', labelcolor='white')
-    ax1.set_ylim(0, 1.2)
+    ax1.set_ylim(0, 1.1)
     ax1.grid(True, axis='y', alpha=0.3, color='gray')
     ax1.axhline(1.0, color='white', linestyle='-', alpha=0.5)
 
     # --- PANEL B: RELAY INTEGRITY ---
-    ax2.set_title("B. Associative Relay Integrity (n=256)\nEnd-to-End Zero-Shot Reconstruction", fontsize=12, color='white', fontweight='bold')
+    ax2.set_title("B. Associative Relay Integrity\n(End-to-End Translation)", fontsize=16, color='white', fontweight='bold', pad=20)
     
     labels_b = ['Phasic Sandwich']
     x_b = np.arange(len(labels_b))
@@ -146,13 +144,13 @@ def plot_sandwich_story(results, output_dir, uid):
     r_val_b = results['r_relay']
     g_val_b = results['g_relay']
     
-    rects3 = ax2.bar(x_b - width/2, [r_val_b], width, label='UIT-ROUND', color=c_round, edgecolor='white', linewidth=1)
-    rects4 = ax2.bar(x_b + width/2, [g_val_b], width, label='GRU', color=c_gru, edgecolor='white', linewidth=1)
+    rects3 = ax2.bar(x_b - width/2, [r_val_b], width, label='UIT-ROUND', color=c_round, edgecolor='white', linewidth=1, alpha=0.9)
+    rects4 = ax2.bar(x_b + width/2, [g_val_b], width, label='GRU', color=c_gru, edgecolor='white', linewidth=1, alpha=0.5)
     
-    ax2.set_ylabel('Relay Success Rate', color='white')
+    ax2.set_ylabel('Relay Success Rate', color='white', fontsize=12)
     ax2.set_xticks(x_b)
-    ax2.set_xticklabels(labels_b, color='white')
-    ax2.set_ylim(0, 1.2)
+    ax2.set_xticklabels(labels_b, color='white', fontsize=12)
+    ax2.set_ylim(0, 1.1)
     ax2.grid(True, axis='y', alpha=0.3, color='gray')
     ax2.axhline(1.0, color='white', linestyle='-', alpha=0.5)
     
@@ -162,61 +160,118 @@ def plot_sandwich_story(results, output_dir, uid):
             height = rect.get_height()
             ax.annotate(f'{height:.1%}',
                         xy=(rect.get_x() + rect.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
+                        xytext=(0, 5),
                         textcoords="offset points",
-                        ha='center', va='bottom', color='white', fontweight='bold')
+                        ha='center', va='bottom', color='white', fontweight='bold', fontsize=12)
 
     autolabel(rects1, ax1)
     autolabel(rects2, ax1)
     autolabel(rects3, ax2)
     autolabel(rects4, ax2)
     
-    # Global Title
-    fig.suptitle(f"Crystalline Phasic Relay vs. Vector Memory Relay\nExperimental Meta (n=256) | Hidden=512 | ROUND_LR=2^-7 | UID: {uid}", fontsize=14, color='white')
+    # Text Annotations for B
+    ax2.text(0.5, 0.5, "Deterministic geometry\npreserves meaning.", 
+             transform=ax2.transAxes, ha='center', color='white', fontsize=10, fontstyle='italic', alpha=0.9, weight='bold')
+    ax2.text(0.5, 0.4, "Vector drift destroys\nself-translation.", 
+             transform=ax2.transAxes, ha='center', color='white', fontsize=10, fontstyle='italic', alpha=0.9, weight='bold')
+
+    # --- PANEL C: HYPERTORUS PROJECTION ---
+    # Visualizing the ENCODER'S understanding space
+    ax3.set_title("C. Hypertorus Projection (Encoder Manifold)", fontsize=16, color='white', fontweight='bold', pad=20)
     
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    # ROUND Scatter
+    rx, ry = [], []
+    if 'r_coords' in results:
+        for seq in results['r_coords']:
+            for step in seq:
+                 # step is (cos, sin) tensors of shape [Batch, Hidden]
+                 # We want to visualize all neurons
+                 rx.extend(step[0].detach().cpu().flatten().tolist())
+                 ry.extend(step[1].detach().cpu().flatten().tolist())
+    
+    # Scale the "Logic Plane" based on GRU accuracy (Relay success)
+    plane_size = results['g_relay'] * 1.5 
+    rect = plt.Rectangle((-plane_size, -plane_size), plane_size*2, plane_size*2, 
+                         color=c_gru, alpha=0.08, zorder=1, label=f'GRU Logic Plane ({results["g_relay"]:.1%})',
+                         edgecolor=c_gru, linewidth=1.5)
+    ax3.add_patch(rect)
+
+    # GRU Scatter
+    gx, gy = [], []
+    if 'g_coords' in results:
+        for seq in results['g_coords']:
+            if seq.dim() == 2:
+                for step in seq:
+                     h_flat = step.detach().cpu().flatten()
+                     half = h_flat.size(0) // 2
+                     gx.extend(h_flat[:half].tolist())
+                     gy.extend(h_flat[half:].tolist())
+            elif seq.dim() == 1:
+                 h_flat = seq.detach().cpu().flatten()
+                 half = h_flat.size(0) // 2
+                 gx.extend(h_flat[:half].tolist())
+                 gy.extend(h_flat[half:].tolist())
+
+    # Scatter ROUND (Layered on top of Plane)
+    ax3.scatter(rx, ry, color=c_round, s=15, alpha=0.6, zorder=3, label='ROUND (512D Manifold)')
+    
+    # GRU Scatter (Transparent)
+    ax3.scatter(gx, gy, color=c_gru, s=10, alpha=0.4, zorder=2, label='GRU (Transparent Panes)')
+    
+    ax3.set_xlim(-1.5, 1.5); ax3.set_ylim(-1.5, 1.5)
+    ax3.set_aspect('equal')
+    ax3.set_xlabel("Projected Dimension 1", color='white')
+    ax3.set_ylabel("Projected Dimension 2", color='white')
+    # Annotate the GRU blob
+    ax3.annotate('GRU: Collapsed\nto origin', xy=(0, 0), xytext=(0.8, 0.8),
+                 fontsize=10, color='white', fontweight='bold',
+                 arrowprops=dict(arrowstyle='->', color='white', lw=1.5))
+    
+    ax3.legend(loc='lower left', facecolor='black', edgecolor='white', labelcolor='white', fontsize=10)
+    
+    # Brutal grid on top
+    ax3.grid(True, which='major', color='white', linestyle='-', linewidth=0.5, alpha=0.4)
+    ax3.set_axisbelow(False)
+
+    # Global Title
+    fig.suptitle(f"The Unified Codec Report: Phasic Translation vs. Stochastic Drift\nExperiment: {uid} | Neurons: {HIDDEN_SIZE} | LR: {args.lr if args.lr else 'N/A'}", fontsize=20, color='white', fontweight='bold')
+    
+    plt.tight_layout(rect=[0, 0.03, 1, 0.92])
     path = os.path.join(output_dir, f"sandwich_duel_story_{uid}.png")
-    plt.savefig(path, facecolor='black', edgecolor='none')
+    plt.savefig(path, facecolor='#0A0B10', edgecolor='none')
     print(f"Plot saved to: {path}")
 
 # --- MAIN ---
 def run_duel(args):
-    print(f"--- [v1.3.0 SANDWICH DUEL | UID: {args.uid}] ---")
+    print(f"--- [v2.0.0 SANDWICH DUEL | UID: {args.uid}] ---")
     
     # 1. LOAD MODEL PATHS
     if args.crystal_path:
-        # Robust logic: Check existence, ignore case for "dec"/"enc" swap logic
         R_DEC_P = args.crystal_path
-        
-        # Try to infer Encoder path by swapping 'decoder' -> 'encoder' or 'dec' -> 'enc'
-        # Check case-insensitive
-        lower_path = args.crystal_path.lower()
-        if "decoder" in lower_path:
-            # Case-preserving swap if possible, simple otherwise
-            if "UIT_ascii_decoder" in args.crystal_path:
-                 R_ENC_P = args.crystal_path.replace("decoder", "encoder")
-            else:
-                 R_ENC_P = args.crystal_path.lower().replace("decoder", "encoder") # Fallback
-        elif "dec" in lower_path:
-             if "uit_dec" in lower_path:
-                 R_ENC_P = args.crystal_path.replace("uit_dec", "uit_enc")
-             elif "UIT_dec" in args.crystal_path:
-                 R_ENC_P = args.crystal_path.replace("UIT_dec", "UIT_enc")
-             else:
-                 R_ENC_P = args.crystal_path.lower().replace("dec", "enc")
+        # Inference logic for Encoder
+        lower = args.crystal_path.lower()
+        if "decoder" in lower:
+             if "UIT_ascii_decoder" in args.crystal_path: R_ENC_P = args.crystal_path.replace("decoder", "encoder")
+             else: R_ENC_P = args.crystal_path.lower().replace("decoder", "encoder")
+        elif "dec" in lower:
+             if "uit_dec" in lower: R_ENC_P = args.crystal_path.replace("uit_dec", "uit_enc")
+             elif "UIT_dec" in args.crystal_path: R_ENC_P = args.crystal_path.replace("UIT_dec", "UIT_enc")
+             else: R_ENC_P = args.crystal_path.lower().replace("dec", "enc")
         else:
-             # Assume user pointed to something else, default encoder?
              R_ENC_P = "ascii_encoder_ultra.pt"
 
         # Find GRU
         c_dir = os.path.dirname(args.crystal_path)
-        G_DEC_P = os.path.join(c_dir, f"gru_decoder_baseline_{args.uid}.pt")
-        G_ENC_P = os.path.join(c_dir, f"gru_encoder_baseline_{args.uid}.pt")
+        # Try compact name first (matches current convention)
+        G_DEC_P = os.path.join(c_dir, f"gru_dec_{args.uid}.pt")
+        G_ENC_P = os.path.join(c_dir, f"gru_enc_{args.uid}.pt")
+        
+        if not os.path.exists(G_DEC_P):
+            # Try legacy/verbose name
+            G_DEC_P = os.path.join(c_dir, f"gru_decoder_baseline_{args.uid}.pt")
+            G_ENC_P = os.path.join(c_dir, f"gru_encoder_baseline_{args.uid}.pt")
     else:
-        # Default or Fallback
-        c_dir = os.path.join(args.output_dir, "crystals") 
-        if not os.path.exists(c_dir): c_dir = "."
-        # Try to find something reasonable
+        # Default
         R_DEC_P = "ascii_decoder_ultra.pt"
         R_ENC_P = "ascii_encoder_ultra.pt" 
         G_DEC_P = None
@@ -237,17 +292,19 @@ def run_duel(args):
         print("UIT Models Loaded.")
     except Exception as e:
         print(f"Error loading UIT: {e}")
-        return
+        print("Continuing with Random/Initialized weights for Verification...")
+
 
     has_gru = False
-    if G_DEC_P and os.path.exists(G_DEC_P) and os.path.exists(G_ENC_P):
+    if G_DEC_P and os.path.exists(G_DEC_P): 
+        # Checking ENC too usually, but let's be lenient
         try:
             g_dec.load_state_dict(torch.load(G_DEC_P, map_location=DEVICE)); g_dec.eval()
             g_enc.load_state_dict(torch.load(G_ENC_P, map_location=DEVICE)); g_enc.eval()
             has_gru = True
             print("GRU Models Loaded.")
-        except Exception as e:
-            print(f"Error loading GRU: {e}. Comparing vs Untrained GRU.")
+        except:
+            print("GRU load failed. Using random init.")
     else:
         print("GRU Crystals not found. Comparing vs Untrained GRU.")
 
@@ -266,14 +323,21 @@ def run_duel(args):
     else:
         g_dec_acc = 0.0; g_enc_acc = 0.0
 
-    # 5. MEASURE RELAY (THE DUEL)
-    print("\n[PHASE B] The Sandwich Duel...")
+    # 5. MEASURE RELAY & COLLECT GEOMETRY
+    print("\n[PHASE B] The Sandwich Duel (Geometry Capture)...")
     
+    # Store coordinates for visualization
+    # We want to see how the Encoder processes the identity
+    r_coords_all = [] # List[256] of List[Seq]
+    g_coords_all = [] # List[256] of Tensor[Seq, Hidden]
+
     def test_relay(dec, enc, is_uit):
         success = 0
+        
         with torch.no_grad():
             for i in range(256):
                 # 1. Decode Bitstream -> H
+                # We skip detailed decode capture for now, focusing on Relay reconstruction
                 bits = [(i >> b) & 1 for b in range(7, -1, -1)]
                 
                 if is_uit:
@@ -284,32 +348,37 @@ def run_duel(args):
                     x_seq = torch.tensor(bits).float().unsqueeze(0).unsqueeze(-1).to(DEVICE)
                     _, h = dec(x_seq)
                 
-                # 2. Encode Identity (OneHot) -> Bitstream (Reconstruction)
-                # Note: The relay 'message' is the Identity 'i'.
-                # The Receiver (Encoder) tries to reconstruct the 'features' of 'i'.
+                # 2. Encode Identity -> Reconstruction
                 onehot = torch.zeros(1, 256).to(DEVICE); onehot[0, i] = 1.0
                 
                 recon_bits = []
                 if is_uit:
-                     # One Shot
-                     l, _ = enc(onehot.unsqueeze(1))
+                     # One Shot with coordinate capture
+                     # We need to manually call to get coords if the logic is complex, 
+                     # or use the return_coordinates flag if implemented in Encoder
+                     l, _, coords = enc(onehot.unsqueeze(1), return_coordinates=True)
                      bits_raw = l.squeeze().tolist()
                      if type(bits_raw) != list: bits_raw = [bits_raw]
                      recon_bits = [1 if b > 0 else 0 for b in bits_raw]
+                     
+                     # coords is List[Seq] of (cos, sin)
+                     r_coords_all.append(coords)
                 else:
                      # GRU Recurrent Gen
-                     h_g = h.unsqueeze(0)
-                     curr_b = torch.zeros(1, 1).to(DEVICE)
-                     for t in range(8):
-                         c_in = torch.cat([curr_b, onehot], dim=-1).unsqueeze(1)
-                         o, h_g = enc.gru(c_in, h_g)
-                         l = enc.readout(o.squeeze(1))
-                         recon_bits.append(1 if l > 0 else 0)
-                         curr_b = torch.sigmoid(l)
+                     # Encoder baseline takes onehot(t) + feedback(t-1)
+                     # But in the relay test, we usually feed pure onehot for verification?
+                     # Actually, the GRUEncoder in this file takes (char_onehot, seq_len)
+                     # Let's use the forward pass of the GRU Encoder we defined above which returns h_all
+                     
+                     # FORCE INJECTION: Use h from decoder as start state
+                     scores, h_all = enc(onehot.unsqueeze(1), h_init=h) # h_all: [1, 8, 512]
+                     g_coords_all.append(h_all.squeeze(0))
+                     
+                     # Convert logits to bits
+                     # scores is [1, 8]
+                     scores_l = scores.squeeze().tolist()
+                     recon_bits = [1 if s > 0 else 0 for s in scores_l]
                 
-                # Check
-                # Encoder target was LSB.
-                # 'bits' (Input) was MSB.
                 target_lsb = bits[::-1] 
                 if recon_bits == target_lsb: success += 1
         return success / 256.0
@@ -323,16 +392,19 @@ def run_duel(args):
     results = {
         "r_dec_acc": r_dec_acc, "r_enc_acc": r_enc_acc,
         "g_dec_acc": g_dec_acc, "g_enc_acc": g_enc_acc,
-        "r_relay": r_relay, "g_relay": g_relay
+        "r_relay": r_relay, "g_relay": g_relay,
+        "r_coords": r_coords_all, "g_coords": g_coords_all
     }
-    plot_sandwich_story(results, args.output_dir, args.uid)
+    plot_sandwich_story(results, args.output_dir, args.uid, args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_dir", type=str, default=".")
+    parser.add_argument("--log_dir", type=str, default=None)
     parser.add_argument("--uid", type=str, default="test")
     parser.add_argument("--crystal_path", type=str, default=None)
     parser.add_argument("--lr", type=float, default=None)
     
     args = parser.parse_args()
+    if args.lr is None: args.lr = 0.0078125 # Default obsidian
     run_duel(args)

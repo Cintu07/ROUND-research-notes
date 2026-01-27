@@ -12,7 +12,9 @@ import os
 import argparse
 import matplotlib.pyplot as plt
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Relative Root Discovery
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if root_dir not in sys.path: sys.path.insert(0, root_dir)
 from UIT_ROUND import UITModel
 
 # --- ARGUMENT PARSING ---

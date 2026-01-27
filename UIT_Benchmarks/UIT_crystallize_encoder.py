@@ -11,7 +11,9 @@ HIDDEN_SIZE = 512
 EPOCHS = 2000 
 LR = 0.0078125 # 2^-7 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-MAP_PATH = "ascii_topological_map.pt"
+MAP_PATH = os.path.join(os.path.dirname(__file__), "..", "ascii_topological_map.pt")
+if not os.path.exists(MAP_PATH):
+    MAP_PATH = "ascii_topological_map.pt" # Fallback to CWD
 
 def generate_encoder_data(batch_size, sovereign_map):
     char_ints = torch.randint(0, 256, (batch_size,)).long()
@@ -30,14 +32,21 @@ def generate_encoder_data(batch_size, sovereign_map):
 def resonance_loss_fn(phi_v, grid_size=256):
     return torch.mean(torch.sin((grid_size/2.0) * phi_v)**2)
 
-def crystallize():
-    print(f"--- [ENCODER v18: THE CRYSTALLINE HAMMER] ---")
-    sovereign_map = torch.load(MAP_PATH, map_location=torch.device('cpu'), weights_only=True)
+def crystallize(args):
+    print(f"--- [ENCODER v18: THE CRYSTALLINE HAMMER | UID: {args.uid}] ---")
+    
+    # Resolve Map Path
+    map_p = args.map_path if args.map_path else MAP_PATH
+    if not os.path.exists(map_p):
+        print(f"Error: Map not found at {map_p}")
+        return
+
+    sovereign_map = torch.load(map_p, map_location=torch.device('cpu'), weights_only=True)
     
     model = UITEncoderModel(input_size=256, hidden_size=HIDDEN_SIZE, output_size=1, num_layers=1, use_binary_alignment=True)
     
     # SEED THE IDENTITY (Renormalization Strike)
-    model.renormalize_identity(MAP_PATH)
+    model.renormalize_identity(map_p)
     
     model.to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR)
@@ -86,13 +95,23 @@ def crystallize():
                 preds = (torch.sigmoid(v_out_logits) > 0.5).float()
                 acc = (preds == vy).all(dim=1).float().mean().item()
                 print(f"Epoch {epoch+1} | Acc: {acc:.2%} | Conf: {v_conf.item():.4f} | Res: {l_res.item():.6f}")
-                
                 if acc >= 1.0:
-                    print(f"--- [ENCODER v12 CRYSTAL SECURED] ---")
-                    model.save_crystal("ascii_encoder_ultra.pt")
+                    save_path = os.path.join(args.output_dir, f"uit_enc_{args.uid}.pt")
+                    model.save_crystal(save_path)
                     return
 
     print("Error: Encoder v12 failed to snap.")
 
 if __name__ == "__main__":
-    crystallize()
+    import argparse
+    import os
+    from datetime import datetime
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output_dir", type=str, default=".")
+    parser.add_argument("--uid", type=str, default=datetime.now().strftime("%Y%m%d_%H%M%S"))
+    parser.add_argument("--map_path", type=str, default=None)
+    args = parser.parse_args()
+    
+    os.makedirs(args.output_dir, exist_ok=True)
+    crystallize(args)

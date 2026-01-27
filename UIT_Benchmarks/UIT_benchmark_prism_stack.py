@@ -7,14 +7,15 @@ import numpy as np
 import argparse
 import matplotlib.pyplot as plt
 
-# Ensure root is in path
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if root_dir not in sys.path: sys.path.append(root_dir)
+# Relative Root Discovery
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if root_dir not in sys.path: sys.path.insert(0, root_dir)
 from UIT_ROUND import UITModel
 
 # --- ARGUMENT PARSING ---
 parser = argparse.ArgumentParser()
 parser.add_argument("--output_dir", type=str, default=".")
+parser.add_argument("--log_dir", type=str, default=None)
 parser.add_argument("--uid", type=str, default="prism_restored")
 parser.add_argument("--lr", type=float, default=None)
 parser.add_argument("--crystal_path", type=str, default=None)
@@ -28,16 +29,15 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # --- CONFIGURATION ---
 BATCH_SIZE = 64
 EPOCHS = 2000 # budget for logic crystallization
-LEARNING_RATE = args.lr if args.lr is not None else 0.02 
+LEARNING_RATE = args.lr if args.lr is not None else 0.001 
 HIDDEN_SIZE = 18  # Match modular space (like Color Algebra's 64/64)
 
 class PrismROUND(nn.Module):
     def __init__(self):
         super().__init__()
-        # Match Color Algebra: 1-layer, direct cell access for Phasic Identity preservation
-        # quantization_strength=0.0 for Mod-18 compatibility
-        # persistence=0.5 for phase decay (critical for learning!)
-        self.uit = UITModel(input_size=18, hidden_size=HIDDEN_SIZE, output_size=18, num_layers=1, quantization_strength=0.0, persistence=0.5)
+        # Restored Phasic Sieve (quantization_strength=0.125) for gradient stability
+        # Standard Modular LR: 0.001
+        self.uit = UITModel(input_size=18, hidden_size=HIDDEN_SIZE, output_size=18, num_layers=1, quantization_strength=0.125, persistence=0.5)
         self.classifier = nn.Linear(HIDDEN_SIZE * 3, 18)
         
     def forward(self, xl, xp):
@@ -96,8 +96,8 @@ def run_benchmark():
     try:
         plt.style.use('dark_background')
         fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(history["round"], color='#00FF00', linewidth=3, label='ROUND (Green)')
-        ax.plot(history["gru"], color='#4B4BFF', linewidth=3, label='GRU (Blue)')
+        ax.plot(history["round"], color='forestgreen', linewidth=3, label='ROUND (Resonant)')
+        ax.plot(history["gru"], color='steelblue', linewidth=3, label='GRU (Stochastic)')
         ax.set_title(f"Prism Stack Duel: Learning Convergence | UID: {UID}", color='white', fontsize=14)
         ax.set_xlabel("Epochs (x100)", color='white')
         ax.set_ylabel("Cross Entropy Loss", color='white')

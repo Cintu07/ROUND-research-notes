@@ -7,7 +7,11 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+import re
 from typing import Dict, List, Optional, Tuple, Union
+
+# ... (rest of imports)
 
 # Color Schemes
 CLASSIC_PALETTE = {
@@ -307,3 +311,81 @@ def plot_multi_word_comparison(
     plt.tight_layout()
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
+
+def update_readme_metadata(readme_path: str, results_dir: str):
+    """
+    Finds the latest result UID and updates the Batch UID and image paths in README.md.
+    """
+    if not os.path.exists(results_dir):
+        print(f"Error: Results directory not found: {results_dir}")
+        return
+
+    # Find latest UID (assuming format YYYY-MM-DD_HHMM_...)
+    subdirs = [d for d in os.listdir(results_dir) if os.path.isdir(os.path.join(results_dir, d))]
+    if not subdirs:
+        print("No results found in directory.")
+        return
+
+    latest_uid_folder = sorted(subdirs)[-1]
+    # Extract UID (everything before the first underscore or the whole thing)
+    batch_uid = latest_uid_folder 
+    
+    print(f"Updating README with latest Batch UID: {batch_uid}")
+
+    with open(readme_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # 1. Update Batch UID
+    content = re.sub(r"\*\*Batch UID:\*\* `[^`]+`", f"**Batch UID:** `{batch_uid}`", content)
+
+    # 2. Update Image Paths
+    # We look for paths like data/UIT_<OLD_UID>/plots/<NAME>_<OLD_UID>.png
+    # or results/<OLD_UID>/plots/<NAME>_<OLD_UID>.png
+    
+    def replacer(match):
+        prefix = match.group(1) # ![Caption](
+        folder_base = match.group(2) # e.g. results/ or data/UIT_
+        old_uid_1 = match.group(3)
+        full_plot_name = match.group(4)
+        old_uid_2 = match.group(5)
+        ext = match.group(6)
+        
+        # Mapping README keys to Actual Script Output prefixes
+        # (README prefix -> Actual Filename prefix)
+        mappings = {
+            "crystalline_loop": "verification_report",
+            "sandwich_duel": "sandwich_duel_story",
+            "prism_stack": "prism_stack_duel",
+            "color_algebra": "color_algebra_duel",
+            "sine_waves": "riemannian_recovery"
+        }
+        
+        plot_name = full_plot_name
+        # If the image in README is ![...](.../crystalline_loop_...), 
+        # we know it needs to link to verification_report_...
+        for key, actual_prefix in mappings.items():
+            if full_plot_name.startswith(key):
+                plot_name = actual_prefix
+                break
+        
+        # New standard is 'results/<UID>/plots/<NAME>_<UID>.<EXT>'
+        return f"{prefix}results/{batch_uid}/plots/{plot_name}_{batch_uid}{ext}"
+
+    # Regex to catch image patterns
+    # Group 1: ![...] (
+    # Group 2: results/ or data/UIT_
+    # Group 3: The OLD UID folder
+    # Group 4: The plot name (everything before the final underscore)
+    # Group 5: The OLD UID in filename
+    # Group 6: Extension
+    pattern = r"(\!\[[^\]]*\]\()((?:results/|data/)(?:UIT_)?)(\w+[\w\-]*)/plots/(\w+[\w\-]*)_(\w+[\w\-]*)(\.\w+)"
+    
+    new_content = re.sub(pattern, replacer, content)
+
+    if new_content == content:
+        print("Warning: No image paths were updated. Check regex patterns.")
+
+    with open(readme_path, "w", encoding="utf-8") as f:
+        f.write(new_content)
+    
+    print("README update complete.")
