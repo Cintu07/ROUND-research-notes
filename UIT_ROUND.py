@@ -1,9 +1,9 @@
+# UIT-ROUND v1.3.12
 import torch
 import torch.nn as nn
 import numpy as np
 
 """
-UIT-ROUND v1.3.10 (Restored Golden State)
 Principles:
 1. Phasic Identity: Information is stored as a residue in the graded ring (Phase Angle).
 2. Phase-Differential Encoding: Bit-streams are encoded via recursive half-shifts (phi = 0.5*phi + bit*pi).

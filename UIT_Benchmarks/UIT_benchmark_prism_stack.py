@@ -1,3 +1,4 @@
+# UIT-ROUND v1.3.12
 import os
 import sys
 import torch
@@ -62,7 +63,7 @@ class PrismGRU(nn.Module):
         return self.readout(h[-1])
 
 def run_benchmark():
-    print(f"--- [v1.3.11 PRISM STACK RESTORATION | UID: {UID}] ---")
+    print(f"--- [v1.3.12 PRISM STACK RESTORATION | UID: {UID}] ---")
     r_model = PrismROUND().to(DEVICE)
     g_model = PrismGRU().to(DEVICE)
     

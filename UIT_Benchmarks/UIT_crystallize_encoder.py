@@ -1,3 +1,4 @@
+# UIT-ROUND v1.3.12
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -33,7 +34,7 @@ def resonance_loss_fn(phi_v, grid_size=256):
     return torch.mean(torch.sin((grid_size/2.0) * phi_v)**2)
 
 def crystallize(args):
-    print(f"--- [ENCODER v18: THE CRYSTALLINE HAMMER | UID: {args.uid}] ---")
+    print(f"--- [ENCODER v1.3.12: THE CRYSTALLINE HAMMER | UID: {args.uid}] ---")
     
     # Resolve Map Path
     map_p = args.map_path if args.map_path else MAP_PATH

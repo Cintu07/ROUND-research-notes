@@ -1,4 +1,4 @@
-# version 0.8.0 - "The Frozen Basin" (Config)
+# UIT-ROUND v1.3.12
 import math
 
 # ROUND Configuration

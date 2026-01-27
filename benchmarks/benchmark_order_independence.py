@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# version 0.7.3 - "The Hyper-Resolution Basin" (Order Independence Gauntlet)
+# UIT-ROUND v1.3.12
 import torch
 import numpy as np
 import os
@@ -22,7 +22,7 @@ def main():
     L_FILE = open(log_path, 'w')
     def P(s): print(s); L_FILE.write(str(s) + '\n'); L_FILE.flush()
 
-    P(f"--- [ORDER INDEPENDENCE GAUNTLET v0.6.2] ---")
+    P(f"--- [ORDER INDEPENDENCE GAUNTLET v1.3.12] ---")
     P(f"Starting Head-to-Head Brutality Test: {RUNS} Shuffled Batches")
     
     master_results = []

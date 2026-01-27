@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# version 0.7.3 - "The Hyper-Resolution Basin" (Permutations)
+# UIT-ROUND v1.3.12
 import torch
 import torch.nn as nn
 import torch.optim as optim

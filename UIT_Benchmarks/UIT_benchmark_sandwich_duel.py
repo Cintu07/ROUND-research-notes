@@ -1,3 +1,4 @@
+# UIT-ROUND v1.3.12
 import sys
 import os
 import argparse
@@ -243,7 +244,7 @@ def plot_sandwich_story(results, output_dir, uid, args):
 
 # --- MAIN ---
 def run_duel(args):
-    print(f"--- [v2.0.0 SANDWICH DUEL | UID: {args.uid}] ---")
+    print(f"--- [v1.3.12 SANDWICH DUEL | UID: {args.uid}] ---")
     
     # 1. LOAD MODEL PATHS
     if args.crystal_path:
