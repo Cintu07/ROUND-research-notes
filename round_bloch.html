@@ -564,8 +564,7 @@
               font-size: 0.75em;
             ">Model</label>
           <select id="model-select" style="width: 100%">
-            <option value="round_v0.8" selected>ROUND v0.8 (Spinor)</option>
-            <option value="uit_v1.3.12">UIT-ROUND v1.3.12 (Obsidian)</option>
+            <option value="uit_v1.3.12" selected>UIT-ROUND v1.3.12 (Obsidian)</option>
             <option value="gru">GRU Baseline</option>
           </select>
         </div>
@@ -948,79 +947,76 @@
      * UIT-ROUND v1.0.0 - Full Spectral Architecture
      */
     class UITNeuronCell {
-      constructor(inputSize, hiddenSize, harmonics = [1, 2, 4, 8], spinMultiplier = 2.0, quantizationStrength = 0.125, useBinaryAlignment = false) {
+      constructor(inputSize, hiddenSize, harmonics = [1, 2, 4, 8], spinMultiplier = 2.0, quantizationStrength = 0.125, useBinaryAlignment = false, persistence = 1.0) {
         this.inputSize = inputSize;
         this.hiddenSize = hiddenSize;
         this.harmonics = harmonics;
         this.spinMultiplier = spinMultiplier;
         this.quantizationStrength = quantizationStrength;
         this.useBinaryAlignment = useBinaryAlignment;
+        this.persistence = persistence;
 
         // Diagnostic Harmonics (Spectral Projection Weights)
-        // Dimension: [hiddenSize, harmonicsCount]
         this.diagH = tf.variable(tf.randomUniform([hiddenSize, harmonics.length], 0, 1));
 
-        // Epsilon (Precision Scaling - Matching Python 1:1)
+        // Epsilon (Precision Scaling — Matching Python 1:1)
         const epsArr = new Float32Array(hiddenSize);
         for (let j = 0; j < hiddenSize; j++) {
           epsArr[j] = 0.125 * Math.pow(0.5, (j % 5));
         }
         this.epsilon = tf.variable(tf.tensor1d(epsArr));
 
-        // Phase Increment Weights: [cos(ph), sin(ph), cos(ph/2), sin(ph/2), cos(in), sin(in)]
-        const featDim = 6;
-        const kaimingBound = Math.sqrt(3.0) * Math.sqrt(2.0 / (hiddenSize * featDim));
-        this.weight = tf.variable(tf.randomUniform([hiddenSize * featDim, hiddenSize], -kaimingBound, kaimingBound));
-        // Initial Phase Spread (Matching Python & v0.8)
+        // weight_ih [inputSize, hiddenSize * 2] — Kaiming init
+        const ihBound = Math.sqrt(3.0) * Math.sqrt(2.0 / inputSize);
+        this.weightIH = tf.variable(tf.randomUniform([inputSize, hiddenSize * 2], -ihBound, ihBound));
+
+        // weight_hh [hiddenSize, hiddenSize * 2] — Zero init (stable start)
+        this.weightHH = tf.variable(tf.zeros([hiddenSize, hiddenSize * 2]));
+
+        // bias [hiddenSize * 2] — upper half gets phase spread
+        const biasData = new Float32Array(hiddenSize * 2);
         const spread = (2.0 * Math.PI) / hiddenSize;
-        const biasData = new Float32Array(hiddenSize);
         for (let j = 0; j < hiddenSize; j++) {
-          biasData[j] = j * spread;
+          biasData[j] = 0; // x_gate bias = 0
+          biasData[hiddenSize + j] = j * spread; // phi_gate bias = phase spread
         }
         this.bias = tf.variable(tf.tensor1d(biasData));
-
-        // Embedding for input projection
-        const embedBound = Math.sqrt(3.0) * Math.sqrt(2.0 / inputSize);
-        this.embedW = tf.variable(tf.randomUniform([inputSize, hiddenSize], -embedBound, embedBound));
-        this.embedB = tf.variable(tf.zeros([hiddenSize]));
       }
 
       forward(x, hPrev) {
         return tf.tidy(() => {
-          let phiNext;
-          let standardPart;
           const PI = Math.PI;
           const multiplier = this.spinMultiplier;
 
+          // Dual-path linear transform: gates = x @ W_ih + h @ W_hh + bias
+          const gates = tf.add(tf.add(tf.matMul(x, this.weightIH), tf.matMul(hPrev, this.weightHH)), this.bias);
+          // Split into two halves: output gate and phase gate
+          const xGate = gates.slice([0, 0], [-1, this.hiddenSize]);
+          const phiGate = gates.slice([0, this.hiddenSize], [-1, this.hiddenSize]);
+
+          // Standard output pathway (tanh — provides baseline learning)
+          const standardPart = tf.tanh(xGate);
+
+          let phiNext;
+
           if (this.useBinaryAlignment) {
-            // PHASIC BIT-SHIFTING (phi = 0.5*phi + bit*pi + bias)
-            phiNext = tf.add(tf.add(tf.mul(hPrev, 0.5), tf.mul(x, PI)), this.bias);
-            standardPart = tf.zerosLike(hPrev);
+            // PHASIC BIT-SHIFT: phi = (hPrev * 0.5) + (bit * pi)
+            const incomingBit = x.slice([0, 0], [-1, 1]).broadcastTo([x.shape[0], this.hiddenSize]);
+            phiNext = tf.add(tf.mul(hPrev, 0.5), tf.mul(incomingBit, PI));
           } else {
-            // STANDARD DISPLACEMENT (phi = hPrev + delta)
-            const embed = tf.add(tf.matMul(x, this.embedW), this.embedB);
-            const inCos = tf.cos(embed);
-            const inSin = tf.sin(embed);
-
-            const c1 = tf.cos(hPrev);
-            const s1 = tf.sin(hPrev);
-            const ph_s = tf.mul(hPrev, 0.5);
-            const cs = tf.cos(ph_s);
-            const ss = tf.sin(ph_s);
-
-            const features = tf.concat([c1, s1, cs, ss, inCos, inSin], 1);
-            const delta = tf.add(tf.matMul(features, this.weight), this.bias);
-            phiNext = tf.add(hPrev, delta);
-            standardPart = tf.tanh(delta); // Approximation of Python standard_part
+            // Sigmoid-bounded phase shift: shift ∈ [0, π * multiplier]
+            const phiShift = tf.mul(tf.sigmoid(phiGate), PI * multiplier);
+            phiNext = tf.add(tf.mul(hPrev, this.persistence), phiShift);
 
             // MANIFOLD NUDGE (Quantization)
-            const grid = PI / 4;
-            const qSieve = tf.mul(tf.round(tf.div(phiNext, grid)), grid);
-            phiNext = tf.add(phiNext, tf.mul(this.quantizationStrength, tf.sub(qSieve, phiNext)));
+            if (this.quantizationStrength > 0) {
+              const grid = PI / 4;
+              const qSieve = tf.mul(tf.round(tf.div(phiNext, grid)), grid);
+              phiNext = tf.add(phiNext, tf.mul(this.quantizationStrength, tf.sub(qSieve, phiNext)));
+            }
           }
 
-          // Modular Constraint
-          phiNext = tf.mod(phiNext, 2 * PI * multiplier);
+          phiNext = tf.mod(phiNext, 2.0 * PI * multiplier);
 
           // HARMONIC PROJECTION
           let hCos = tf.zerosLike(phiNext);
@@ -1031,35 +1027,25 @@
             hSin = tf.add(hSin, tf.mul(hWeight, tf.sin(tf.mul(phiNext, h))));
           });
 
-          // CELL OUTPUT (Residue Scaling)
-          let output = tf.mul(standardPart, tf.add(1.0, tf.mul(this.epsilon, hCos)));
+          // Output: standard_part modulated by harmonic resonance
+          // When hCos is high (locked), epsilon amplifies. When unlocked, it's vanilla tanh.
+          const output = tf.mul(standardPart, tf.add(tf.scalar(1.0), tf.mul(this.epsilon, hCos)));
 
-          // Binary alignment output adjustment (matching Python: output + 0.1 * h_cos)
-          if (this.useBinaryAlignment) {
-            output = tf.add(output, tf.mul(hCos, 0.1));
-          }
-
-          return {
-            phiNext: tf.keep(phiNext),
-            output: tf.keep(output),
-            hCos: tf.keep(hCos),
-            hSin: tf.keep(hSin)
-          };
+          return { output, phiNext, hCos, hSin };
         });
       }
 
       dispose() {
         this.diagH.dispose();
         this.epsilon.dispose();
-        this.weight.dispose();
+        this.weightIH.dispose();
+        this.weightHH.dispose();
         this.bias.dispose();
-        this.embedW.dispose();
-        this.embedB.dispose();
       }
     }
 
     class UITModel {
-      constructor(inputSize, hiddenSize, outputSize, harmonics = [1, 2, 4, 8], spinMultiplier = 2.0, useBinaryAlignment = false, quantizationStrength = 0.125) {
+      constructor(inputSize, hiddenSize, outputSize, harmonics = [1, 2, 4, 8], spinMultiplier = 2.0, useBinaryAlignment = false, quantizationStrength = 0.125, persistence = 1.0) {
         this.inputSize = inputSize;
         this.hiddenSize = hiddenSize;
         this.outputSize = outputSize;
@@ -1068,16 +1054,17 @@
         this.useBinaryAlignment = useBinaryAlignment;
         this.modelType = "uit_v1.3.12";
 
-        this.layer = new UITNeuronCell(inputSize, hiddenSize, harmonics, spinMultiplier, quantizationStrength, useBinaryAlignment);
+        this.layer = new UITNeuronCell(inputSize, hiddenSize, harmonics, spinMultiplier, quantizationStrength, useBinaryAlignment, persistence);
 
-        // DUAL-LAYER READOUT (matching Python: Linear(hidden*3, hidden) -> Tanh -> Linear(hidden, output))
-        const read1Bound = Math.sqrt(3.0) * Math.sqrt(2.0 / (hiddenSize * 3 + hiddenSize));
-        this.readout1 = tf.variable(tf.randomUniform([hiddenSize * 3, hiddenSize], -read1Bound, read1Bound));
-        this.readout1Bias = tf.variable(tf.zeros([hiddenSize]));
-
-        const read2Bound = Math.sqrt(3.0) * Math.sqrt(2.0 / (hiddenSize + outputSize));
-        this.readout2 = tf.variable(tf.randomUniform([hiddenSize, outputSize], -read2Bound, read2Bound));
-        this.readout2Bias = tf.variable(tf.zeros([outputSize]));
+        // READOUT: 2-layer MLP matching Python UITModel (Linear -> Tanh -> Linear)
+        // Input features from cell: [output, hCos, hSin] = hidden * 3
+        const readoutInputDim = hiddenSize * 3;
+        const r1Bound = Math.sqrt(3.0) * Math.sqrt(2.0 / readoutInputDim);
+        this.readoutW1 = tf.variable(tf.randomUniform([readoutInputDim, hiddenSize], -r1Bound, r1Bound));
+        this.readoutB1 = tf.variable(tf.zeros([hiddenSize]));
+        const r2Bound = Math.sqrt(3.0) * Math.sqrt(2.0 / hiddenSize);
+        this.readoutW2 = tf.variable(tf.randomUniform([hiddenSize, outputSize], -r2Bound, r2Bound));
+        this.readoutB2 = tf.variable(tf.zeros([outputSize]));
 
         this.phase = null;
         this.phi = null;
@@ -1085,71 +1072,50 @@
       }
 
       forward(x) {
-        return tf.tidy(() => {
-          const is3D = x.rank === 3;
-          const [batch, seq, dim] = is3D ? x.shape : [x.shape[0], 1, x.shape[1]];
+        const is3D = x.rank === 3;
+        const [batch, seq, dim] = is3D ? x.shape : [x.shape[0], 1, x.shape[1]];
 
-          let hState = tf.zeros([batch, this.hiddenSize]);
-          let hCos = tf.zeros([batch, this.hiddenSize]);
-          let hSin = tf.zeros([batch, this.hiddenSize]);
-          let cellOutput = tf.zeros([batch, this.hiddenSize]);
+        let hState = tf.zeros([batch, this.hiddenSize]);
+        let hCos = null;
+        let hSin = null;
+        let lastOutput = null;
 
-          const seqLen = is3D ? seq : 1;
+        const seqLen = is3D ? seq : 1;
 
-          for (let t = 0; t < seqLen; t++) {
-            const prevHState = hState;
-            const prevHCos = hCos;
-            const prevHSin = hSin;
-            const prevCellOut = cellOutput;
+        for (let t = 0; t < seqLen; t++) {
+          const prevState = hState;
+          const xSlice = is3D ? x.slice([0, t, 0], [batch, 1, dim]).reshape([batch, dim]) : x;
+          const result = this.layer.forward(xSlice, hState);
 
-            const xSlice = is3D
-              ? x.slice([0, t, 0], [batch, 1, dim]).reshape([batch, dim])
-              : x;
+          hState = result.phiNext;
+          hCos = result.hCos;
+          hSin = result.hSin;
+          lastOutput = result.output;
 
-            const result = this.layer.forward(xSlice, hState);
+          if (is3D) xSlice.dispose();
+          if (t > 0) prevState.dispose();
+        }
 
-            if (is3D) xSlice.dispose();
+        const updateState = (p, n) => {
+          if (this[p]) this[p].dispose();
+          this[p] = tf.keep(n);
+        };
+        updateState('phase', hState);
+        updateState('hCos', hCos);
+        updateState('hSin', hSin);
+        this.phi = this.phase;
+        this.h = this.phase;
 
-            hState = result.phiNext;
-            hCos = result.hCos;
-            hSin = result.hSin;
-            cellOutput = result.output;
+        // READOUT: 2-layer MLP [features -> hidden (tanh) -> output]
+        // Features: [output, hCos, hSin] — matches Python UITModel: torch.cat([current_input, h_cos, h_sin])
+        const readoutFeatures = tf.concat([lastOutput, hCos, hSin], 1);
+        const hidden1 = tf.tanh(tf.add(tf.matMul(readoutFeatures, this.readoutW1), this.readoutB1));
+        const logits = tf.add(tf.matMul(hidden1, this.readoutW2), this.readoutB2);
 
-            // Dispose old state tensors
-            if (prevHState) prevHState.dispose();
-            if (prevHCos) prevHCos.dispose();
-            if (prevHSin) prevHSin.dispose();
-            if (prevCellOut) prevCellOut.dispose();
-            if (prevCellOut) prevCellOut.dispose();
-          }
+        if (this.lastConfidence) this.lastConfidence.dispose();
+        this.lastConfidence = tf.keep(tf.div(tf.mean(tf.abs(hCos)), this.harmonics.length));
 
-          if (this.phase) this.phase.dispose();
-          if (this.hCos) this.hCos.dispose();
-          if (this.hSin) this.hSin.dispose();
-
-          this.phase = tf.keep(hState);
-          this.hCos = tf.keep(hCos);
-          this.hSin = tf.keep(hSin);
-          this.phi = this.phase;
-          this.h = this.phase;
-
-          // FEATURE CONCAT: [cellOutput, hCos, hSin] (hidden * 3)
-          const features = tf.concat([cellOutput, hCos, hSin], 1);
-
-          // Now that features are concatenated, the kept cellOutput is no longer needed
-          cellOutput.dispose();
-
-          // DUAL-LAYER READOUT FLOW
-          const latent = tf.tanh(tf.add(tf.matMul(features, this.readout1), this.readout1Bias));
-          const logits = tf.add(tf.matMul(latent, this.readout2), this.readout2Bias);
-
-          // Confidence calculation (matching Python: h_cos.abs().mean() / harmonics_count)
-          if (this.lastConfidence) this.lastConfidence.dispose();
-          const confValue = tf.div(tf.mean(tf.abs(hCos)), this.harmonics.length);
-          this.lastConfidence = tf.keep(confValue);
-
-          return logits;
-        });
+        return logits;
       }
 
       loss(x, y, lockStrength = 0.1) {
@@ -1161,19 +1127,23 @@
           taskLoss = tf.losses.sigmoidCrossEntropy(y, logits).mean();
         }
 
-        // Confidence-Weighted Loss (Python parity: loss * (1.1 - conf))
-        if (this.lastConfidence) {
-          taskLoss = tf.mul(taskLoss, tf.sub(1.1, this.lastConfidence));
-        }
+        // Phase Locking (Matching HarmonicROUNDLoss: Σ w[i] * sin(h[i]/2 * ph)^2)
+        let lockLoss = tf.scalar(0);
+        this.harmonics.forEach((h) => {
+          const pH = tf.mul(this.phase, h * 0.5);
+          const hLock = tf.mean(tf.square(tf.sin(pH)));
+          lockLoss = tf.add(lockLoss, hLock);
+        });
+        lockLoss = tf.div(lockLoss, this.harmonics.length);
 
-        const pH = tf.mul(this.phase, 0.5 / this.spinMultiplier);
-        const lockLoss = tf.mean(tf.square(tf.sin(pH)));
         const totalLoss = tf.add(taskLoss, tf.mul(lockLoss, lockStrength));
 
         return {
           total: totalLoss,
           task: taskLoss,
           lock: lockLoss,
+          logits: logits,
+          confidence: this.lastConfidence
         };
       }
 
@@ -1192,14 +1162,13 @@
         return [
           this.layer.diagH,
           this.layer.epsilon,
-          this.layer.weight,
+          this.layer.weightIH,
+          this.layer.weightHH,
           this.layer.bias,
-          this.layer.embedW,
-          this.layer.embedB,
-          this.readout1,
-          this.readout1Bias,
-          this.readout2,
-          this.readout2Bias,
+          this.readoutW1,
+          this.readoutB1,
+          this.readoutW2,
+          this.readoutB2,
         ];
       }
 
@@ -1211,14 +1180,13 @@
         const weights = {};
         weights.diagH = await this.layer.diagH.array();
         weights.epsilon = await this.layer.epsilon.array();
-        weights.weight = await this.layer.weight.array();
+        weights.weightIH = await this.layer.weightIH.array();
+        weights.weightHH = await this.layer.weightHH.array();
         weights.bias = await this.layer.bias.array();
-        weights.embedW = await this.layer.embedW.array();
-        weights.embedB = await this.layer.embedB.array();
-        weights.readout1 = await this.readout1.array();
-        weights.readout1Bias = await this.readout1Bias.array();
-        weights.readout2 = await this.readout2.array();
-        weights.readout2Bias = await this.readout2Bias.array();
+        weights.readoutW1 = await this.readoutW1.array();
+        weights.readoutB1 = await this.readoutB1.array();
+        weights.readoutW2 = await this.readoutW2.array();
+        weights.readoutB2 = await this.readoutB2.array();
         return weights;
       }
 
@@ -1226,14 +1194,13 @@
         try {
           this.layer.diagH.assign(tf.tensor(weights.diagH));
           this.layer.epsilon.assign(tf.tensor(weights.epsilon));
-          this.layer.weight.assign(tf.tensor(weights.weight));
+          this.layer.weightIH.assign(tf.tensor(weights.weightIH));
+          this.layer.weightHH.assign(tf.tensor(weights.weightHH));
           this.layer.bias.assign(tf.tensor(weights.bias));
-          this.layer.embedW.assign(tf.tensor(weights.embedW));
-          this.layer.embedB.assign(tf.tensor(weights.embedB));
-          this.readout1.assign(tf.tensor(weights.readout1));
-          this.readout1Bias.assign(tf.tensor(weights.readout1Bias));
-          this.readout2.assign(tf.tensor(weights.readout2));
-          this.readout2Bias.assign(tf.tensor(weights.readout2Bias));
+          this.readoutW1.assign(tf.tensor(weights.readoutW1));
+          this.readoutB1.assign(tf.tensor(weights.readoutB1));
+          this.readoutW2.assign(tf.tensor(weights.readoutW2));
+          this.readoutB2.assign(tf.tensor(weights.readoutB2));
         } catch (err) {
           throw new Error(`Failed to load checkpoint weights: ${err.message}. The checkpoint was saved with a different model configuration (hidden size, input/output size, or model type) than the current model. Please ensure the model configuration matches the checkpoint before loading.`);
         }
@@ -1241,10 +1208,10 @@
 
       dispose() {
         this.layer.dispose();
-        this.readout1.dispose();
-        this.readout1Bias.dispose();
-        this.readout2.dispose();
-        this.readout2Bias.dispose();
+        this.readoutW1.dispose();
+        this.readoutB1.dispose();
+        this.readoutW2.dispose();
+        this.readoutB2.dispose();
         if (this.phase) this.phase.dispose();
         if (this.hCos) this.hCos.dispose();
         if (this.hSin) this.hSin.dispose();
@@ -1409,271 +1376,73 @@
       }
     }
 
-    /**
-     * ROUND v0.8 - Browser-compatible version
-     */
-    class ROUNDModel {
-      constructor(
-        inputDim,
-        hiddenSize,
-        outputDim = 1,
-        spinor = true,
-        steps = 20
-      ) {
-        this.inputDim = inputDim;
-        this.hiddenSize = hiddenSize;
-        this.outputDim = outputDim;
-        this.spinor = spinor;
-        this.steps = steps;
-        this.modelType = "round_v0.8";
 
-        this.phase = null;
-        this.phi = null;
-        this.h = null;
-
-        this.phase = null;
-        this.phi = null;
-        this.h = null;
-
-        this.embedW = tf.variable(tf.fill([inputDim, hiddenSize], Math.PI));
-        this.embedB = tf.variable(tf.zeros([hiddenSize]));
-
-        const featDim = spinor ? 6 : 4;
-        this.phaseW = tf.variable(
-          tf.zeros([hiddenSize * featDim, hiddenSize])
-        );
-        this.phaseB = tf.variable(tf.fill([hiddenSize], Math.PI / 2));
-
-        const inCosIdx = spinor ? 4 : 2;
-        tf.tidy(() => {
-          const indices = [];
-          for (let i = 0; i < hiddenSize; i++) {
-            indices.push([i * featDim + inCosIdx, i]);
-          }
-          const updates = tf.fill([hiddenSize], -Math.PI / 2);
-          const newPhaseW = tf.tensorScatterUpdate(
-            this.phaseW,
-            indices,
-            updates
-          );
-          this.phaseW.assign(newPhaseW);
-        });
-
-        const readDim = spinor ? 5 : 3;
-        this.readW = tf.variable(
-          tf.randomNormal([hiddenSize * readDim, outputDim], 0, 0.1)
-        );
-        this.readB = tf.variable(tf.zeros([outputDim]));
-        this.phase = null;
-      }
-
-      forward(x) {
-        const logits = tf.tidy(() => {
-          const is3D = x.rank === 3;
-          const [batch, seq, dim] = is3D
-            ? x.shape
-            : [x.shape[0], 1, x.shape[1]];
-
-          const xFlat = is3D ? x.reshape([batch * seq, dim]) : x;
-          const embedFlat = tf.add(
-            tf.matMul(xFlat, this.embedW),
-            this.embedB
-          );
-          const embed = is3D
-            ? embedFlat.reshape([batch, seq, this.hiddenSize])
-            : embedFlat;
-
-          const inCos = tf.cos(embed);
-          const inSin = tf.sin(embed);
-
-          let phase = tf.zeros([x.shape[0], this.hiddenSize]);
-
-          for (let t = 0; t < this.steps; t++) {
-            const c1 = tf.cos(phase);
-            const s1 = tf.sin(phase);
-            let feat = [c1, s1];
-
-            if (this.spinor) {
-              const pH = tf.mul(phase, 0.5);
-              feat.push(tf.cos(pH), tf.sin(pH));
-            }
-
-            // For 3D input, use the last sequence step's embedding for all accumulation steps
-            // (matching ROUND.py behavior where xp is used for all steps)
-            const inCosT =
-              inCos.rank === 3
-                ? inCos.slice([0, seq - 1, 0], [-1, 1, -1]).squeeze([1])
-                : inCos;
-            const inSinT =
-              inSin.rank === 3
-                ? inSin.slice([0, seq - 1, 0], [-1, 1, -1]).squeeze([1])
-                : inSin;
-            feat.push(inCosT, inSinT);
-
-            const delta = tf.add(
-              tf.matMul(tf.concat(feat, 1), this.phaseW),
-              this.phaseB
-            );
-            phase = tf.add(phase, delta);
-          }
-
-          if (this.phase) this.phase.dispose();
-          this.phase = tf.keep(phase);
-          this.phi = this.phase;
-          this.h = this.phase;
-
-          const c1 = tf.cos(phase);
-          const s1 = tf.sin(phase);
-          let readFeat = [c1, s1];
-
-          if (this.spinor) {
-            const pH = tf.mul(phase, 0.5);
-            readFeat.push(tf.cos(pH), tf.sin(pH));
-          }
-          readFeat.push(phase);
-
-          return tf.add(
-            tf.matMul(tf.concat(readFeat, 1), this.readW),
-            this.readB
-          );
-        });
-
-        return logits;
-      }
-
-      loss(x, y, lockStrength = 0.1) {
-        return tf.tidy(() => {
-          const logits = this.forward(x);
-          const taskLoss = tf.losses.sigmoidCrossEntropy(y, logits).mean();
-
-          const pH = tf.mul(this.phase, 0.5);
-          const lockLoss = tf.mean(tf.square(tf.sin(pH)));
-
-          return {
-            total: tf.add(taskLoss, tf.mul(lockLoss, lockStrength)),
-            task: taskLoss,
-            lock: lockLoss,
-          };
-        });
-      }
-
-      predict(x) {
-        return tf.tidy(() =>
-          tf.sigmoid(this.forward(x)).greater(0.5).asType("float32")
-        );
-      }
-
-      getWeights() {
-        return [
-          this.embedW,
-          this.embedB,
-          this.phaseW,
-          this.phaseB,
-          this.readW,
-          this.readB,
-        ];
-      }
-
-      async getPhaseArray() {
-        return this.phase ? await this.phase.array() : null;
-      }
-
-      async exportWeights() {
-        return {
-          embedW: await this.embedW.array(),
-          embedB: await this.embedB.array(),
-          phaseW: await this.phaseW.array(),
-          phaseB: await this.phaseB.array(),
-          readW: await this.readW.array(),
-          readB: await this.readB.array(),
-        };
-      }
-
-      importWeights(weights) {
-        try {
-          this.embedW.assign(tf.tensor(weights.embedW));
-          this.embedB.assign(tf.tensor(weights.embedB));
-          this.phaseW.assign(tf.tensor(weights.phaseW));
-          this.phaseB.assign(tf.tensor(weights.phaseB));
-          this.readW.assign(tf.tensor(weights.readW));
-          this.readB.assign(tf.tensor(weights.readB));
-        } catch (err) {
-          throw new Error(`Failed to load checkpoint weights: ${err.message}. The checkpoint was saved with a different model configuration (hidden size, input/output size, or model type) than the current model. Please ensure the model configuration matches the checkpoint before loading.`);
-        }
-      }
-
-      dispose() {
-        [
-          this.embedW,
-          this.embedB,
-          this.phaseW,
-          this.phaseB,
-          this.readW,
-          this.readB,
-        ].forEach((t) => t.dispose());
-        if (this.phase) this.phase.dispose();
-      }
-    }
 
     // TASK PRESETS (Grounded Benchmarks from Python UIT 1.3.12)
     const TASK_PRESETS = {
       'xor': {
-        lr: -5,
+        lr: -7, // 2^-7 = 0.0078125
         hidden: 8,
         harmonics: "[1]",
         quantization: 0.125,
-        spinMultiplier: 1.0,
+        spinMultiplier: 2.0,
         useBinaryAlignment: "false",
+        persistence: 1.0,
         lockStr: 0.1,
-        lockDelay: 200
+        lockDelay: 100
       },
       'parity4': {
-        lr: -6,
-        hidden: 16,
-        harmonics: "[1,2,4,8]",
+        lr: -6.64, // ≈0.01, matching Python config
+        hidden: 4,
+        harmonics: "[1]",
         quantization: 0.125,
         spinMultiplier: 2.0,
         useBinaryAlignment: "false",
+        persistence: 1.0,
         lockStr: 0.125,
-        lockDelay: 200
+        lockDelay: 100
       },
       'parity8': {
-        lr: -6,
-        hidden: 128,
-        harmonics: "[1,2,4,8]",
+        lr: -6.64,
+        hidden: 4,
+        harmonics: "[1]",
         quantization: 0.125,
         spinMultiplier: 2.0,
         useBinaryAlignment: "false",
+        persistence: 1.0,
         lockStr: 0.125,
         lockDelay: 200
       },
       'parity16': {
-        lr: -7,
-        hidden: 512,
-        harmonics: "[1,2,4,8]",
+        lr: -6.64,
+        hidden: 4,
+        harmonics: "[1]",
         quantization: 0.125,
         spinMultiplier: 2.0,
         useBinaryAlignment: "false",
+        persistence: 1.0,
         lockStr: 0.125,
         lockDelay: 200
       },
       'majority': {
-        lr: -5,
-        hidden: 64,
-        harmonics: "[1,2,4,8]",
+        lr: -6.64,
+        hidden: 8,
+        harmonics: "[1]",
         quantization: 0.125,
         spinMultiplier: 2.0,
         useBinaryAlignment: "false",
+        persistence: 1.0,
         lockStr: 0.125,
         lockDelay: 200
       },
       'ascii_decoder': {
-        lr: -9,
-        hidden: 128,
+        lr: -7,
+        hidden: 32,
         harmonics: "[1,2,4,8]",
-        quantization: 0.125,
+        quantization: 0.0,
         spinMultiplier: 2.0,
         useBinaryAlignment: "true",
+        persistence: 0.0,
         lockStr: 0.5,
         lockDelay: 200
       },
@@ -2080,34 +1849,37 @@
      * Task Data Generators
      */
     function genXOR() {
-      const x = [[0, 0], [0, 1], [1, 0], [1, 1]];
+      // Sequential: [batch, 2, 1] — 2 timesteps of 1 bit
+      const x = [[[0], [0]], [[0], [1]], [[1], [0]], [[1], [1]]];
       const y = [[0], [1], [1], [0]];
       return {
-        train: { x: tf.tensor2d(x), y: tf.tensor2d(y) },
-        test: { x: tf.tensor2d(x), y: tf.tensor2d(y) },
+        train: { x: tf.tensor3d(x), y: tf.tensor2d(y) },
+        test: { x: tf.tensor3d(x), y: tf.tensor2d(y) },
       };
     }
 
     function gen4Bit() {
+      // Sequential: [batch, 4, 1] — 4 timesteps of 1 bit
       const x = [], y = [];
       for (let i = 0; i < 16; i++) {
         const bits = [];
         let par = 0;
         for (let j = 0; j < 4; j++) {
           const b = (i >> j) & 1;
-          bits.push(b);
+          bits.push([b]); // [1] per timestep
           par ^= b;
         }
         x.push(bits);
         y.push([par]);
       }
       return {
-        train: { x: tf.tensor2d(x), y: tf.tensor2d(y) },
-        test: { x: tf.tensor2d(x), y: tf.tensor2d(y) },
+        train: { x: tf.tensor3d(x), y: tf.tensor2d(y) },
+        test: { x: tf.tensor3d(x), y: tf.tensor2d(y) },
       };
     }
 
     function gen8Bit() {
+      // Sequential: [batch, 8, 1] — 8 timesteps of 1 bit
       const xTrain = [], yTrain = [];
       const xTest = [], yTest = [];
 
@@ -2116,7 +1888,7 @@
         let par = 0;
         for (let j = 0; j < 8; j++) {
           const b = (i >> j) & 1;
-          bits.push(b);
+          bits.push([b]); // [1] per timestep
           par ^= b;
         }
         if (i < 200) {
@@ -2129,17 +1901,15 @@
       }
 
       return {
-        train: { x: tf.tensor2d(xTrain), y: tf.tensor2d(yTrain) },
-        test: { x: tf.tensor2d(xTest), y: tf.tensor2d(yTest) },
+        train: { x: tf.tensor3d(xTrain), y: tf.tensor2d(yTrain) },
+        test: { x: tf.tensor3d(xTest), y: tf.tensor2d(yTest) },
       };
     }
 
-    // Generate 16-bit parity data
     function genParity16() {
-      const xTrain = [],
-        yTrain = [];
-      const xTest = [],
-        yTest = [];
+      // Sequential: [batch, 16, 1] — 16 timesteps of 1 bit (matches Python benchmark)
+      const xTrain = [], yTrain = [];
+      const xTest = [], yTest = [];
       const trainNums = new Set();
       const testNums = new Set();
 
@@ -2157,7 +1927,7 @@
         let par = 0;
         for (let j = 0; j < 16; j++) {
           const b = (num >> j) & 1;
-          bits.push(b);
+          bits.push([b]); // [1] per timestep
           par ^= b;
         }
         xTrain.push(bits);
@@ -2169,7 +1939,7 @@
         let par = 0;
         for (let j = 0; j < 16; j++) {
           const b = (num >> j) & 1;
-          bits.push(b);
+          bits.push([b]); // [1] per timestep
           par ^= b;
         }
         xTest.push(bits);
@@ -2177,12 +1947,13 @@
       }
 
       return {
-        train: { x: tf.tensor2d(xTrain), y: tf.tensor2d(yTrain) },
-        test: { x: tf.tensor2d(xTest), y: tf.tensor2d(yTest) },
+        train: { x: tf.tensor3d(xTrain), y: tf.tensor2d(yTrain) },
+        test: { x: tf.tensor3d(xTest), y: tf.tensor2d(yTest) },
       };
     }
 
     function genMajority() {
+      // Sequential: [batch, 8, 1] — 8 timesteps of 1 bit
       const xTrain = [], yTrain = [];
       const xTest = [], yTest = [];
 
@@ -2191,7 +1962,7 @@
         let count = 0;
         for (let j = 0; j < 8; j++) {
           const b = Math.random() > 0.5 ? 1 : 0;
-          bits.push(b);
+          bits.push([b]); // [1] per timestep
           count += b;
         }
         xTrain.push(bits);
@@ -2203,7 +1974,7 @@
         let count = 0;
         for (let j = 0; j < 8; j++) {
           const b = Math.random() > 0.5 ? 1 : 0;
-          bits.push(b);
+          bits.push([b]); // [1] per timestep
           count += b;
         }
         xTest.push(bits);
@@ -2211,8 +1982,8 @@
       }
 
       return {
-        train: { x: tf.tensor2d(xTrain), y: tf.tensor2d(yTrain) },
-        test: { x: tf.tensor2d(xTest), y: tf.tensor2d(yTest) },
+        train: { x: tf.tensor3d(xTrain), y: tf.tensor2d(yTrain) },
+        test: { x: tf.tensor3d(xTest), y: tf.tensor2d(yTest) },
       };
     }
 
@@ -2254,11 +2025,11 @@
 
     function getTaskConfig(taskName) {
       const configs = {
-        xor: { inputSize: 2, outputSize: 1, is3D: false },
-        parity4: { inputSize: 4, outputSize: 1, is3D: false },
-        parity8: { inputSize: 8, outputSize: 1, is3D: false },
-        parity16: { inputSize: 16, outputSize: 1, is3D: false },
-        majority: { inputSize: 8, outputSize: 1, is3D: false },
+        xor: { inputSize: 1, outputSize: 1, is3D: true },
+        parity4: { inputSize: 1, outputSize: 1, is3D: true },
+        parity8: { inputSize: 1, outputSize: 1, is3D: true },
+        parity16: { inputSize: 1, outputSize: 1, is3D: true },
+        majority: { inputSize: 1, outputSize: 1, is3D: true },
         ascii_decoder: { inputSize: 1, outputSize: 256, is3D: true },
       };
       return configs[taskName];
@@ -2293,6 +2064,28 @@
 
       const taskName = document.getElementById("task").value;
       const modelType = document.getElementById("model-select").value;
+
+      // Apply task presets to UI controls BEFORE reading them
+      const preset = TASK_PRESETS[taskName];
+      if (preset) {
+        document.getElementById("lr-slider").value = preset.lr;
+        document.getElementById("hidden").value = preset.hidden;
+        document.getElementById("harmonics-select").value = preset.harmonics;
+        document.getElementById("quantization").value = preset.quantization;
+        document.getElementById("binary-alignment").value = preset.useBinaryAlignment;
+        if (preset.lockStr !== undefined) {
+          document.getElementById("lock-strength").value = preset.lockStr;
+          document.getElementById("lock-val").textContent = preset.lockStr.toFixed(2);
+        }
+        if (preset.lockDelay !== undefined) {
+          document.getElementById("lock-delay").value = preset.lockDelay;
+          document.getElementById("lock-delay-val").textContent = preset.lockDelay;
+        }
+        document.getElementById("hidden-val").textContent = preset.hidden;
+        document.getElementById("quant-val").textContent = preset.quantization;
+        updateLR();
+      }
+
       const hiddenSize = parseInt(document.getElementById("hidden").value);
 
       const taskConfig = getTaskConfig(taskName);
@@ -2302,19 +2095,17 @@
       if (model) model.dispose();
 
       // Create model based on selection
-      if (modelType === "round_v0.8") {
-        model = new ROUNDModel(inputSize, hiddenSize, outputSize, true, 20);
-        log(`Created ROUND v0.8: Spinor=true, Steps=20`, false);
-      } else if (modelType === "uit_v1.3.12") {
+      if (modelType === "uit_v1.3.12") {
         const currentTask = document.getElementById("task").value;
         const preset = TASK_PRESETS[currentTask] || {};
         const finalSpin = preset.spinMultiplier !== undefined ? preset.spinMultiplier : 2.0;
+        const persistence = preset.persistence !== undefined ? preset.persistence : 1.0;
         const quantization = parseFloat(document.getElementById("quantization").value);
         const useBinaryAlignment = document.getElementById("binary-alignment").value === "true";
 
         const harmonics = JSON.parse(document.getElementById("harmonics-select").value);
-        model = new UITModel(inputSize, hiddenSize, outputSize, harmonics, finalSpin, useBinaryAlignment, quantization);
-        log(`Created UIT-ROUND v1.0 [Sovereign Rewrite]: Spin=${finalSpin}, BinaryAlign=${useBinaryAlignment}`, false);
+        model = new UITModel(inputSize, hiddenSize, outputSize, harmonics, finalSpin, useBinaryAlignment, quantization, persistence);
+        log(`Created UIT-ROUND v1.3.12 [Obsidian]: Spin=${finalSpin}, BinaryAlign=${useBinaryAlignment}, Persist=${persistence}`, false);
       } else if (modelType === "gru") {
         model = new GRUBaseline(inputSize, hiddenSize, outputSize);
         log(`Created GRU Baseline`, false);
@@ -2785,19 +2576,17 @@
 
       optimizer.minimize(
         () => {
-          return tf.tidy(() => {
-            let xBatch, yBatch;
-            if (batchSize < numSamples) {
-              const indices = tf.randomUniform([batchSize], 0, numSamples, 'int32');
-              xBatch = tf.gather(trainData.x, indices);
-              yBatch = tf.gather(trainData.y, indices);
-            } else {
-              xBatch = trainData.x;
-              yBatch = trainData.y;
-            }
-            const { total } = model.loss(xBatch, yBatch, actualLockStr);
-            return total;
-          });
+          let xBatch, yBatch;
+          if (batchSize < numSamples) {
+            const indices = tf.randomUniform([batchSize], 0, numSamples, 'int32');
+            xBatch = tf.gather(trainData.x, indices);
+            yBatch = tf.gather(trainData.y, indices);
+          } else {
+            xBatch = trainData.x;
+            yBatch = trainData.y;
+          }
+          const { total } = model.loss(xBatch, yBatch, actualLockStr);
+          return total;
         },
         true,
         model.getWeights()
@@ -2806,29 +2595,36 @@
       // Metrics and Accuracy on a test batch
       const testBatchSize = Math.min(testData.x.shape[0], 128);
       const results = tf.tidy(() => {
-        const indices = tf.range(0, testBatchSize, 1, 'int32');
-        const xBatch = tf.gather(testData.x, indices);
-        const yBatch = tf.gather(testData.y, indices);
-        const losses = model.loss(xBatch, yBatch, actualLockStr);
-        const logits = model.forward(testData.x);
-        const confidence = model.lastConfidence || null;
+        const testIndices = tf.range(0, testBatchSize, 1, 'int32');
+        const xTestBatch = tf.gather(testData.x, testIndices);
+        const yTestBatch = tf.gather(testData.y, testIndices);
+
+        // One pass for everything using the test batch
+        const testResults = model.loss(xTestBatch, yTestBatch, actualLockStr);
+        const logits = testResults.logits;
+        const conf = testResults.confidence;
 
         let accValue;
         if (isMultiClass) {
           const pred = tf.argMax(logits, 1);
-          const yTrue = tf.argMax(testData.y, 1);
+          const yTrue = tf.argMax(yTestBatch, 1);
           accValue = tf.mean(tf.cast(tf.equal(pred, yTrue), "float32"));
         } else {
-          const pred = model.predict(testData.x);
-          accValue = tf.mean(tf.cast(tf.equal(pred, testData.y), "float32"));
+          let pred;
+          if (model.outputSize > 1) {
+            pred = tf.argMax(logits, 1);
+          } else {
+            pred = tf.cast(tf.greater(tf.sigmoid(logits), 0.5), 'float32');
+          }
+          accValue = tf.mean(tf.cast(tf.equal(pred, yTestBatch), "float32"));
         }
 
         return {
           accuracy: accValue.dataSync()[0],
-          task: losses.task.dataSync()[0],
-          lock: losses.lock.dataSync()[0],
-          total: losses.total.dataSync()[0],
-          confidence: confidence ? confidence.dataSync()[0] : 0
+          task: testResults.task.dataSync()[0],
+          lock: testResults.lock.dataSync()[0],
+          total: testResults.total.dataSync()[0],
+          confidence: conf ? conf.dataSync()[0] : 0
         };
       });
 
@@ -3263,37 +3059,32 @@
         scene.add(line);
         phasePoints.push(line);
 
-        // Trail rendering (only last step)
+        // Trail rendering (full history)
         if (history.length > 1) {
           const slerpPoints = [];
           const segmentsPerStep = currentSettings.trailSegments;
 
-          // Only render trail for the last step (last 2 points)
-          const lastIndex = history.length - 1;
-          const p1 = getPosition(
-            history[lastIndex - 1].theta,
-            history[lastIndex - 1].phi
-          ).normalize();
-          const p2 = getPosition(
-            history[lastIndex].theta,
-            history[lastIndex].phi
-          ).normalize();
+          // Render trail for the entire history
+          for (let j = 0; j < history.length - 1; j++) {
+            const p1 = getPosition(history[j].theta, history[j].phi).normalize();
+            const p2 = getPosition(history[j + 1].theta, history[j + 1].phi).normalize();
 
-          for (let k = 0; k < segmentsPerStep; k++) {
-            const t = k / segmentsPerStep;
-            const interpolated = slerp(p1, p2, t);
-            slerpPoints.push(interpolated.clone().multiplyScalar(1.01)); // Slightly above sphere surface
+            for (let k = 0; k < segmentsPerStep; k++) {
+              const t = k / segmentsPerStep;
+              const interpolated = slerp(p1, p2, t);
+              slerpPoints.push(interpolated.clone().multiplyScalar(1.01));
+            }
           }
+          // Add the very last point
           slerpPoints.push(
             getPosition(
-              history[lastIndex].theta,
-              history[lastIndex].phi
+              history[history.length - 1].theta,
+              history[history.length - 1].phi
             ).multiplyScalar(1.01)
           );
 
-          // Use TubeGeometry for thicker trail (linewidth is not respected on most platforms)
           const curve = new THREE.CatmullRomCurve3(slerpPoints);
-          const trailGeo = new THREE.TubeGeometry(curve, slerpPoints.length, 0.015, 8, false);
+          const trailGeo = new THREE.TubeGeometry(curve, slerpPoints.length, 0.01, 8, false);
           const trailMat = new THREE.MeshBasicMaterial({
             color: color,
             transparent: true,
@@ -3333,75 +3124,55 @@
         squareCtx.fillStyle = color;
         squareCtx.lineWidth = 2;
 
-        // Only draw trail for last step (last 2 points)
-        // Interpolate phi values and calculate theta from phi using the locking formula
+        // Trail rendering (full history)
         if (history.length > 1) {
           squareCtx.globalAlpha = 0.5;
-          const lastIndex = history.length - 1;
-          const prevPt = history[lastIndex - 1];
-          const currPt = history[lastIndex];
-
-          // Normalize phi values to [0, 2π)
-          let phi1 = prevPt.phi % (2 * Math.PI);
-          if (phi1 < 0) phi1 += 2 * Math.PI;
-          let phi2 = currPt.phi % (2 * Math.PI);
-          if (phi2 < 0) phi2 += 2 * Math.PI;
-
-          // Find shortest path for phi (handle wrap-around)
-          let deltaPhi = phi2 - phi1;
-          if (deltaPhi > Math.PI) {
-            deltaPhi -= 2 * Math.PI;
-          } else if (deltaPhi < -Math.PI) {
-            deltaPhi += 2 * Math.PI;
-          }
-
           const segmentsPerStep = currentSettings.trailSegments;
           squareCtx.beginPath();
 
-          for (let k = 0; k <= segmentsPerStep; k++) {
-            const t = k / segmentsPerStep;
-            // Interpolate phi along shortest path
-            let phi = phi1 + deltaPhi * t;
-            // Normalize phi to [0, 2π)
-            phi = phi % (2 * Math.PI);
-            if (phi < 0) phi += 2 * Math.PI;
+          for (let j = 0; j < history.length - 1; j++) {
+            const prevPt = history[j];
+            const currPt = history[j + 1];
 
-            // Calculate theta from phi using locking formula: theta = sin(phi/2)^2 * π
-            const locking = Math.sin(phi / 2) ** 2;
-            const theta = locking * Math.PI;
+            // Normalize phi values to [0, 2π)
+            let phi1 = prevPt.phi % (2 * Math.PI);
+            if (phi1 < 0) phi1 += 2 * Math.PI;
+            let phi2 = currPt.phi % (2 * Math.PI);
+            if (phi2 < 0) phi2 += 2 * Math.PI;
 
-            // Use getPosition to get the 3D position (for consistency)
-            const pos = getPosition(theta, phi);
+            // Find shortest path for phi
+            let deltaPhi = phi2 - phi1;
+            if (deltaPhi > Math.PI) deltaPhi -= 2 * Math.PI;
+            else if (deltaPhi < -Math.PI) deltaPhi += 2 * Math.PI;
 
-            // Project to canvas coordinates
-            const x = (phi / (2 * Math.PI)) * w;
-            const y = (theta / Math.PI) * h;
+            for (let k = 0; k <= segmentsPerStep; k++) {
+              if (j > 0 && k === 0) continue; // Skip redundant points
 
-            if (k === 0) {
-              squareCtx.moveTo(x, y);
-            } else {
-              // Check if we crossed the wrap boundary
-              const prevT = (k - 1) / segmentsPerStep;
-              let prevPhi = phi1 + deltaPhi * prevT;
-              prevPhi = prevPhi % (2 * Math.PI);
-              if (prevPhi < 0) prevPhi += 2 * Math.PI;
-              const prevX = (prevPhi / (2 * Math.PI)) * w;
+              const t = k / segmentsPerStep;
+              let phi = phi1 + deltaPhi * t;
+              phi = phi % (2 * Math.PI);
+              if (phi < 0) phi += 2 * Math.PI;
 
-              // If we crossed the wrap boundary (x difference > half width), break the path
-              const dx = Math.abs(x - prevX);
-              if (dx > w / 2) {
-                // Draw to edge, then start new segment from opposite edge
-                if (prevX > x) {
-                  // Wrapped right to left
-                  squareCtx.lineTo(w, y);
-                  squareCtx.moveTo(0, y);
-                } else {
-                  // Wrapped left to right
-                  squareCtx.lineTo(0, y);
-                  squareCtx.moveTo(w, y);
+              const locking = Math.sin(phi / 2) ** 2;
+              const theta = locking * Math.PI;
+
+              const x = (phi / (2 * Math.PI)) * w;
+              const y = (theta / Math.PI) * h;
+
+              if (j === 0 && k === 0) {
+                squareCtx.moveTo(x, y);
+              } else {
+                const prevT = k === 0 ? 1 : (k - 1) / segmentsPerStep;
+                let prevPhiVal = k === 0 ? (history[j - 1].phi % (2 * Math.PI)) : (phi1 + deltaPhi * prevT);
+                if (prevPhiVal < 0) prevPhiVal += 2 * Math.PI;
+                const prevX = (prevPhiVal / (2 * Math.PI)) * w;
+
+                if (Math.abs(x - prevX) > w / 2) {
+                  if (prevX > x) { squareCtx.lineTo(w, y); squareCtx.moveTo(0, y); }
+                  else { squareCtx.lineTo(0, y); squareCtx.moveTo(w, y); }
                 }
+                squareCtx.lineTo(x, y);
               }
-              squareCtx.lineTo(x, y);
             }
           }
           squareCtx.stroke();
@@ -3455,55 +3226,47 @@
         polarCtx.fillStyle = color;
         polarCtx.lineWidth = 2;
 
-        // Only draw trail for last step (last 2 points)
-        // Interpolate phi values and calculate theta from phi using the locking formula
+        // Trail rendering (full history)
         if (history.length > 1) {
           polarCtx.globalAlpha = 0.5;
-          const lastIndex = history.length - 1;
-          const prevPt = history[lastIndex - 1];
-          const currPt = history[lastIndex];
-
-          // Normalize phi values to [0, 2π)
-          let phi1 = prevPt.phi % (2 * Math.PI);
-          if (phi1 < 0) phi1 += 2 * Math.PI;
-          let phi2 = currPt.phi % (2 * Math.PI);
-          if (phi2 < 0) phi2 += 2 * Math.PI;
-
-          // Find shortest path for phi (handle wrap-around)
-          let deltaPhi = phi2 - phi1;
-          if (deltaPhi > Math.PI) {
-            deltaPhi -= 2 * Math.PI;
-          } else if (deltaPhi < -Math.PI) {
-            deltaPhi += 2 * Math.PI;
-          }
-
           const segmentsPerStep = currentSettings.trailSegments;
           polarCtx.beginPath();
 
-          for (let k = 0; k <= segmentsPerStep; k++) {
-            const t = k / segmentsPerStep;
-            // Interpolate phi along shortest path
-            let phi = phi1 + deltaPhi * t;
-            // Normalize phi to [0, 2π)
-            phi = phi % (2 * Math.PI);
-            if (phi < 0) phi += 2 * Math.PI;
+          for (let j = 0; j < history.length - 1; j++) {
+            const prevPt = history[j];
+            const currPt = history[j + 1];
 
-            // Calculate theta from phi using locking formula: theta = sin(phi/2)^2 * π
-            const locking = Math.sin(phi / 2) ** 2;
-            const theta = locking * Math.PI;
+            // Normalize phi values
+            let phi1 = prevPt.phi % (2 * Math.PI);
+            if (phi1 < 0) phi1 += 2 * Math.PI;
+            let phi2 = currPt.phi % (2 * Math.PI);
+            if (phi2 < 0) phi2 += 2 * Math.PI;
 
-            // Use getPosition to get the 3D position (for consistency)
-            const pos = getPosition(theta, phi);
+            // Shortest path
+            let deltaPhi = phi2 - phi1;
+            if (deltaPhi > Math.PI) deltaPhi -= 2 * Math.PI;
+            else if (deltaPhi < -Math.PI) deltaPhi += 2 * Math.PI;
 
-            // Project to polar canvas coordinates
-            const r = (theta / Math.PI) * maxR;
-            const x = cx + r * Math.cos(phi);
-            const y = cy + r * Math.sin(phi);
+            for (let k = 0; k <= segmentsPerStep; k++) {
+              if (j > 0 && k === 0) continue;
 
-            if (k === 0) {
-              polarCtx.moveTo(x, y);
-            } else {
-              polarCtx.lineTo(x, y);
+              const t = k / segmentsPerStep;
+              let phi = phi1 + deltaPhi * t;
+              phi = phi % (2 * Math.PI);
+              if (phi < 0) phi += 2 * Math.PI;
+
+              const locking = Math.sin(phi / 2) ** 2;
+              const theta = locking * Math.PI;
+
+              const r = (theta / Math.PI) * maxR;
+              const x = cx + r * Math.cos(phi);
+              const y = cy + r * Math.sin(phi);
+
+              if (j === 0 && k === 0) {
+                polarCtx.moveTo(x, y);
+              } else {
+                polarCtx.lineTo(x, y);
+              }
             }
           }
           polarCtx.stroke();
