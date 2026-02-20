@@ -970,15 +970,14 @@
         const ihBound = Math.sqrt(3.0) * Math.sqrt(2.0 / inputSize);
         this.weightIH = tf.variable(tf.randomUniform([inputSize, hiddenSize * 2], -ihBound, ihBound));
 
-        // weight_hh [hiddenSize, hiddenSize * 2] — Zero init (stable start)
+        // weight_hh [hiddenSize, hiddenSize * 2] — Zeros
         this.weightHH = tf.variable(tf.zeros([hiddenSize, hiddenSize * 2]));
 
-        // bias [hiddenSize * 2] — upper half gets phase spread
+        // bias [hiddenSize * 2] — Phase spread on second half
         const biasData = new Float32Array(hiddenSize * 2);
-        const spread = (2.0 * Math.PI) / hiddenSize;
+        const spread = (2 * Math.PI) / hiddenSize;
         for (let j = 0; j < hiddenSize; j++) {
-          biasData[j] = 0; // x_gate bias = 0
-          biasData[hiddenSize + j] = j * spread; // phi_gate bias = phase spread
+          biasData[hiddenSize + j] = j * spread;
         }
         this.bias = tf.variable(tf.tensor1d(biasData));
       }
@@ -1004,7 +1003,7 @@
             const incomingBit = x.slice([0, 0], [-1, 1]).broadcastTo([x.shape[0], this.hiddenSize]);
             phiNext = tf.add(tf.mul(hPrev, 0.5), tf.mul(incomingBit, PI));
           } else {
-            // Sigmoid-bounded phase shift: shift ∈ [0, π * multiplier]
+            // Sigmoid-bounded phase shift: shift in [0, pi * multiplier]
             const phiShift = tf.mul(tf.sigmoid(phiGate), PI * multiplier);
             phiNext = tf.add(tf.mul(hPrev, this.persistence), phiShift);
 
@@ -1028,7 +1027,6 @@
           });
 
           // Output: standard_part modulated by harmonic resonance
-          // When hCos is high (locked), epsilon amplifies. When unlocked, it's vanilla tanh.
           const output = tf.mul(standardPart, tf.add(tf.scalar(1.0), tf.mul(this.epsilon, hCos)));
 
           return { output, phiNext, hCos, hSin };
@@ -1107,7 +1105,7 @@
         this.h = this.phase;
 
         // READOUT: 2-layer MLP [features -> hidden (tanh) -> output]
-        // Features: [output, hCos, hSin] — matches Python UITModel: torch.cat([current_input, h_cos, h_sin])
+        // Features: [output, hCos, hSin] — matches Python UITModel
         const readoutFeatures = tf.concat([lastOutput, hCos, hSin], 1);
         const hidden1 = tf.tanh(tf.add(tf.matMul(readoutFeatures, this.readoutW1), this.readoutB1));
         const logits = tf.add(tf.matMul(hidden1, this.readoutW2), this.readoutB2);
@@ -1385,43 +1383,43 @@
         hidden: 8,
         harmonics: "[1]",
         quantization: 0.125,
-        spinMultiplier: 2.0,
+        spinMultiplier: 1.0,
         useBinaryAlignment: "false",
         persistence: 1.0,
         lockStr: 0.1,
         lockDelay: 100
       },
       'parity4': {
-        lr: -6.64, // ≈0.01, matching Python config
-        hidden: 4,
+        lr: -8, // 2^-8 = 0.00390625
+        hidden: 1,
         harmonics: "[1]",
         quantization: 0.125,
         spinMultiplier: 2.0,
         useBinaryAlignment: "false",
         persistence: 1.0,
-        lockStr: 0.125,
+        lockStr: 0.13,
         lockDelay: 100
       },
       'parity8': {
-        lr: -6.64,
-        hidden: 4,
+        lr: -8,
+        hidden: 1,
         harmonics: "[1]",
         quantization: 0.125,
         spinMultiplier: 2.0,
         useBinaryAlignment: "false",
         persistence: 1.0,
-        lockStr: 0.125,
+        lockStr: 0.13,
         lockDelay: 200
       },
       'parity16': {
-        lr: -6.64,
-        hidden: 4,
+        lr: -8,
+        hidden: 1,
         harmonics: "[1]",
         quantization: 0.125,
         spinMultiplier: 2.0,
         useBinaryAlignment: "false",
         persistence: 1.0,
-        lockStr: 0.125,
+        lockStr: 0.13,
         lockDelay: 200
       },
       'majority': {
