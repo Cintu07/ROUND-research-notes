@@ -1379,14 +1379,14 @@
     // TASK PRESETS (Grounded Benchmarks from Python UIT 1.3.12)
     const TASK_PRESETS = {
       'xor': {
-        lr: -7, // 2^-7 = 0.0078125
-        hidden: 8,
+        lr: -8, // 2^-8 = 0.00390625
+        hidden: 1, // Single neuron 1-D winding
         harmonics: "[1]",
         quantization: 0.125,
-        spinMultiplier: 1.0,
+        spinMultiplier: 2.0, // Increase spin capacity to match parity presets
         useBinaryAlignment: "false",
         persistence: 1.0,
-        lockStr: 0.1,
+        lockStr: 0.13, // Standardize locking with parity
         lockDelay: 100
       },
       'parity4': {

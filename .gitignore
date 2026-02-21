@@ -19,3 +19,9 @@ $RECYCLE.BIN/
 
 # Archive
 zz_archive/
+
+# ROUNDPC Experimental Sandboxes
+ROUNDPC_Benchmarks/
+ROUNDPC_*.py
+
+ROUND_Kuramoto_Prototype.py
