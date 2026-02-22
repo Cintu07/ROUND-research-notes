@@ -699,7 +699,7 @@
       </div>
 
       <div style="margin-top: 8px; display: flex; gap: 4px;">
-        <button id="benchmark-btn" style="flex: 1; padding: 6px; font-size: 0.75em;">📊 Benchmark</button>
+        <button id="benchmark-btn" style="flex: 1; padding: 6px; font-size: 0.75em;">🔍 Inspect</button>
         <button id="benchmark-train-btn" style="flex: 1; padding: 6px; font-size: 0.75em;">📈 +Train</button>
         <button id="settings-btn" style="flex: 1; padding: 6px; font-size: 0.75em;" title="Advanced Settings">⚙️
           Settings</button>
@@ -1026,10 +1026,13 @@
             hSin = tf.add(hSin, tf.mul(hWeight, tf.sin(tf.mul(phiNext, h))));
           });
 
-          // Output: standard_part modulated by harmonic resonance
-          const output = tf.mul(standardPart, tf.add(tf.scalar(1.0), tf.mul(this.epsilon, hCos)));
+          // Confidence metric (norm of harmonic phase alignment)
+          const confidence = tf.div(tf.abs(hCos), this.harmonics.length);
 
-          return { output, phiNext, hCos, hSin };
+          // Output: standard_part modulated by harmonic resonance
+          let output = tf.mul(standardPart, tf.add(tf.scalar(1.0), tf.mul(this.epsilon, hCos)));
+
+          return { output, phiNext, hCos, hSin, confidence };
         });
       }
 
@@ -1474,6 +1477,8 @@
     let phaseHistory = []; // Store full phase snapshots at each epoch
     let timelineMode = "live"; // 'live' or 'scrubbing'
     let currentTimelineEpoch = 0;
+    let cpHistory = {}; // Buffer for automatic timeline weight snapshots
+    let trainingWeights = null; // Buffer for the actual current training weights
     let lastConvergenceTime = 0; // Track last convergence time in milliseconds
 
     // Performance Settings System
@@ -2062,6 +2067,14 @@
 
       const taskName = document.getElementById("task").value;
       const modelType = document.getElementById("model-select").value;
+      const uitParams = document.getElementById("uit-params");
+
+      // Show/hide UIT params based on model
+      if (modelType === "uit_v1.3.12") {
+        uitParams.style.display = "block";
+      } else {
+        uitParams.style.display = "none";
+      }
 
       // Apply task presets to UI controls BEFORE reading them
       const preset = TASK_PRESETS[taskName];
@@ -2172,7 +2185,7 @@
         }
       };
       document.getElementById("benchmark-btn").onclick = async () => {
-        await runBenchmark(false);
+        await showBenchmarkModal();
       };
       document.getElementById("benchmark-train-btn").onclick = async () => {
         await runBenchmark(true);
@@ -2689,6 +2702,20 @@
 
       epoch++;
 
+      // Save weights to cpHistory for timeline inspection
+      const isConverged = accuracy >= 0.99;
+      const shouldSaveWeights = epoch === 1 || (epoch % 100 === 0) || (isConverged && !hist.converged[hist.converged.length - 2]);
+      if (shouldSaveWeights) {
+        model.exportWeights().then(weights => {
+          cpHistory[epoch - 1] = { weights, accuracy, epoch: epoch - 1 };
+        });
+      }
+
+      // Update the actual training weights buffer
+      model.exportWeights().then(weights => {
+        trainingWeights = weights;
+      });
+
       // Update minimap/epoch tracking
       if (timelineMode === "live") {
         currentTimelineEpoch = epoch - 1;
@@ -2802,11 +2829,12 @@
           };
 
           // Add UIT-specific params
-          if (config.model === "uit_v1.0") {
+          if (config.model === "uit_v1.3.12") {
             config.harmonics = JSON.parse(document.getElementById("harmonics-select").value);
             config.quantization = parseFloat(document.getElementById("quantization").value);
-            config.spinMultiplier = 2.0;
+            config.spinMultiplier = model ? model.spinMultiplier : 2.0;
             config.useBinaryAlignment = document.getElementById("binary-alignment").value === "true";
+            config.persistence = model && model.layer ? model.layer.persistence : 1.0;
           }
 
           const weights = await model.exportWeights();
@@ -2822,6 +2850,16 @@
               acc: hist.acc.slice(),
               task: hist.task.slice(),
               lock: hist.lock.slice(),
+              total: (hist.total || []).slice(),
+              delta: (hist.delta || []).slice(),
+              phaseMean: (hist.phaseMean || []).slice(),
+              phaseStd: (hist.phaseStd || []).slice(),
+              phaseMin: (hist.phaseMin || []).slice(),
+              phaseMax: (hist.phaseMax || []).slice(),
+              activeNeurons: (hist.activeNeurons || []).slice(),
+              lockedNeurons: (hist.lockedNeurons || []).slice(),
+              confidence: (hist.confidence || []).slice(),
+              converged: (hist.converged || []).slice(),
             },
             phaseHistory: phaseHistory.slice(-trailLength),
           };
@@ -3807,14 +3845,15 @@
         lock: parseFloat(document.getElementById("lock-strength").value),
         lockDelay: parseInt(document.getElementById("lock-delay").value),
         lr: currentLR,
+        persistence: model && model.layer ? model.layer.persistence : 1.0,
+        spinMultiplier: model ? model.spinMultiplier : 2.0,
         spinor: true, // Always true for ROUND models
       };
 
       // Add UIT-specific params
-      if (config.model === "uit_v1.0") {
+      if (config.model === "uit_v1.3.12") {
         config.harmonics = JSON.parse(document.getElementById("harmonics-select").value);
         config.quantization = parseFloat(document.getElementById("quantization").value);
-        config.spinMultiplier = 2.0;
         config.useBinaryAlignment = document.getElementById("binary-alignment").value === "true";
       }
 
@@ -3934,10 +3973,10 @@
 
         // Show/hide UIT params based on model
         const uitParams = document.getElementById("uit-params");
-        if (cp.config.model === "uit_v1.0") {
+        if (cp.config.model === "uit_v1.3.12") {
           uitParams.style.display = "block";
           if (cp.config.harmonics) {
-            document.getElementById("harmonics-select").value = JSON.stringify(cp.config.harmonics);
+            document.getElementById("harmonics-select").value = typeof cp.config.harmonics === 'string' ? cp.config.harmonics : JSON.stringify(cp.config.harmonics);
           }
           if (cp.config.quantization !== undefined) {
             document.getElementById("quantization").value = cp.config.quantization;
@@ -3959,16 +3998,16 @@
 
         log(`Recreating model: ${cp.config.model}, Hidden=${cp.config.hidden}H, Input=${taskConfig.inputSize}, Output=${taskConfig.outputSize}`, false);
 
-        if (cp.config.model === "round_v0.8") {
-          model = new ROUNDModel(taskConfig.inputSize, cp.config.hidden, taskConfig.outputSize, true, 20);
-        } else if (cp.config.model === "uit_v1.0") {
+        if (cp.config.model === "uit_v1.3.12") {
           model = new UITModel(
             taskConfig.inputSize,
             cp.config.hidden,
             taskConfig.outputSize,
             cp.config.harmonics || [1, 2, 4, 8],
-            cp.config.spinMultiplier || 1.0, // Use 1.0 for UIT (2π range)
-            cp.config.useBinaryAlignment || false
+            cp.config.spinMultiplier || 2.0,
+            cp.config.useBinaryAlignment || false,
+            cp.config.quantization || 0.125,
+            cp.config.persistence || 1.0
           );
         } else if (cp.config.model === "gru") {
           model = new GRUBaseline(taskConfig.inputSize, cp.config.hidden, taskConfig.outputSize);
@@ -4085,6 +4124,21 @@
     }
 
     async function runBenchmark(withTraining = false) {
+      // Ensure we're using the correct weights based on timeline position
+      const totalEpochs = hist.acc.length;
+      const isAtLatestEpoch = currentTimelineEpoch >= totalEpochs - 1;
+
+      if (isAtLatestEpoch && totalEpochs > 0) {
+        // At latest epoch: already in model
+      } else if (currentTimelineEpoch >= 0 && cpHistory[currentTimelineEpoch]) {
+        // Not at latest epoch: Use weights from cpHistory
+        try {
+          model.importWeights(cpHistory[currentTimelineEpoch].weights);
+        } catch (err) {
+          logWarning('Failed to restore weights for benchmark: ' + err.message);
+        }
+      }
+
       const taskName = document.getElementById("task").value;
       const modelType = document.getElementById("model-select").value;
       const isMultiClass = taskName === "ascii_decoder";
@@ -4110,30 +4164,34 @@
         log(`Benchmark training complete: ${trainingEpochs} epochs`, true);
       }
 
-      // Generate fresh test data
-      log(`Generating fresh test data (${taskName})...`, true);
-      const freshData = generateTaskData(taskName);
-      log(`Test set size: ${freshData.test.x.shape[0]} samples`, false);
+      // Use the existing testData from initialization
+      if (!testData || !testData.x) {
+        logError('Test data not available. Please initialize the model first.');
+        return;
+      }
+      log(`Using test data (${taskName})...`, true);
+      log(`Test set size: ${testData.x.shape[0]} samples`, false);
 
-      // Evaluate on fresh test data
-      log(`Evaluating model on fresh test data...`, true);
-      const pred = model.predict(freshData.test.x);
+      // Evaluate on test data
+      log(`Evaluating model on test data...`, true);
+      const pred = model.predict(testData.x);
       let acc;
       if (isMultiClass) {
         acc = tf.tidy(() => {
-          const yTrue = tf.argMax(freshData.test.y, 1);
+          const yTrue = tf.argMax(testData.y, 1);
           return tf.mean(tf.cast(tf.equal(pred, yTrue), "float32"));
         });
       } else {
         acc = tf.tidy(() =>
-          tf.mean(tf.cast(tf.equal(pred, freshData.test.y), "float32"))
+          tf.mean(tf.cast(tf.equal(pred, testData.y), "float32"))
         );
       }
       const accuracy = acc.dataSync()[0];
       acc.dispose();
       pred.dispose();
 
-      logSuccess(`Benchmark accuracy: ${(accuracy * 100).toFixed(2)}%`);
+      const testedEpoch = currentTimelineEpoch >= 0 ? currentTimelineEpoch : (hist.acc.length > 0 ? hist.acc.length - 1 : 0);
+      logSuccess(`Benchmark accuracy: ${(accuracy * 100).toFixed(2)}% (Epoch E${testedEpoch})`);
 
       // Run full validation if applicable
       if (['xor', 'parity4', 'parity8'].includes(taskName)) {
@@ -4141,32 +4199,13 @@
         await validateFullSpace(taskName);
       }
 
-      // Generate report
-      const report = {
-        model: model.modelType,
-        task: taskName,
-        accuracy: accuracy,
-        epochsTraining: withTraining ? 100 : 0,
-        totalEpochs: epoch,
-        timestamp: new Date().toISOString(),
-        config: {
-          hidden: model.hiddenSize,
-          lr: currentLR,
-        }
-      };
-
-      logPhase(`BENCHMARK COMPLETE`);
-      log(`Model: ${report.model} | Task: ${report.task} | Acc: ${(report.accuracy * 100).toFixed(2)}%`, true);
-      log(`Total Epochs: ${report.totalEpochs} | Training Epochs: ${report.epochsTraining}`, false);
-      log(`Config: Hidden=${report.config.hidden}H, LR=2^${Math.round(Math.log2(report.config.lr))}`, false);
-
       // Auto-save checkpoint if accuracy improved
       if (hist.acc.length > 0 && accuracy > hist.acc[hist.acc.length - 1]) {
         logSuccess('Accuracy improved! Auto-saving checkpoint...');
         await saveCheckpoint();
-      } else if (hist.acc.length > 0) {
-        log(`Accuracy: ${(accuracy * 100).toFixed(2)}% (previous: ${(hist.acc[hist.acc.length - 1] * 100).toFixed(2)}%)`, false);
       }
+
+      return accuracy;
     }
 
     async function validateFullSpace(taskName) {
@@ -4266,6 +4305,475 @@
       return { accuracy: finalAcc, correct: totalCorrect, wrong: errors.length };
     }
 
+    // --- TEST INSPECTION & INFERENCE TRACING ---
+
+    const taskDescriptions = {
+      'xor': {
+        name: 'XOR (Exclusive OR)',
+        description: 'Learn the XOR logic function: output is 1 when inputs differ, 0 when they match.',
+        examples: [
+          { input: [0, 0], output: 0, explanation: 'Both inputs are 0 → output is 0' },
+          { input: [0, 1], output: 1, explanation: 'Inputs differ → output is 1' },
+          { input: [1, 0], output: 1, explanation: 'Inputs differ → output is 1' },
+          { input: [1, 1], output: 0, explanation: 'Both inputs are 1 → output is 0' }
+        ]
+      },
+      'parity4': {
+        name: '4-bit Parity',
+        description: 'Determine if the number of 1s in a 4-bit input is even (0) or odd (1).',
+        examples: [
+          { input: [0, 0, 0, 0], output: 0, explanation: '0 ones (even) → parity 0' },
+          { input: [0, 0, 0, 1], output: 1, explanation: '1 one (odd) → parity 1' },
+          { input: [1, 1, 1, 1], output: 0, explanation: '4 ones (even) → parity 0' }
+        ]
+      },
+      'parity8': {
+        name: '8-bit Parity',
+        description: 'Determine if the number of 1s in an 8-bit input is even (0) or odd (1).',
+        examples: [
+          { input: [0, 0, 0, 0, 0, 0, 0, 0], output: 0, explanation: '0 ones (even) → parity 0' },
+          { input: [1, 1, 1, 1, 1, 1, 1, 1], output: 0, explanation: '8 ones (even) → parity 0' },
+          { input: [1, 0, 0, 0, 0, 0, 0, 0], output: 1, explanation: '1 one (odd) → parity 1' }
+        ]
+      },
+      'parity16': {
+        name: '16-bit Parity',
+        description: 'Determine if the number of 1s in a 16-bit input is even (0) or odd (1).',
+        examples: [
+          { input: '16-bit binary', output: 0, explanation: 'Even number of 1s → parity 0' },
+          { input: '16-bit binary', output: 1, explanation: 'Odd number of 1s → parity 1' }
+        ]
+      },
+      'majority': {
+        name: 'Majority Vote (8-bit)',
+        description: 'Output 1 if more than half the bits are 1, otherwise 0.',
+        examples: [
+          { input: [1, 1, 1, 1, 0, 0, 0, 0], output: 1, explanation: '4 ones (majority) → output 1' },
+          { input: [1, 1, 0, 0, 0, 0, 0, 0], output: 0, explanation: '2 ones (not majority) → output 0' }
+        ]
+      },
+      'ascii_decoder': {
+        name: 'ASCII Decoder',
+        description: 'Decode an 8-bit binary sequence into the corresponding ASCII character (0-255).',
+        examples: [
+          { input: [0, 1, 0, 0, 1, 0, 0, 0], output: 'H', explanation: 'Binary 01001000 = 72 = "H"' },
+          { input: [0, 1, 0, 0, 1, 0, 0, 1], output: 'I', explanation: 'Binary 01001001 = 73 = "I"' }
+        ]
+      }
+    };
+
+    async function showBenchmarkModal() {
+      if (isTraining) stopTraining();
+
+      const modal = document.getElementById("benchmark-modal");
+      const content = document.getElementById("benchmark-content");
+      const taskName = document.getElementById("task").value;
+      const modelType = document.getElementById("model-select").value;
+
+      modal.style.display = "block";
+      content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--dim);">Running benchmark...</div>';
+
+      // Run evaluation
+      const accuracy = await runBenchmark(false);
+
+      // Render modal content
+      const taskDesc = taskDescriptions[taskName] || { name: taskName, description: 'No description available', examples: [] };
+
+      let html = `
+        <div style="margin-bottom: 25px;">
+          <h1 style="color: var(--accent); margin: 0 0 5px 0;">${taskDesc.name}</h1>
+          <p style="color: var(--dim); font-size: 0.9em; margin-bottom: 15px;">${taskDesc.description}</p>
+          
+          <div style="display: flex; gap: 20px; border-top: 1px solid var(--border); padding-top: 15px;">
+            <div>
+              <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Model</div>
+              <div style="font-weight: 600; color: var(--text);">${modelType.toUpperCase()}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Accuracy</div>
+              <div style="font-weight: 600; color: ${accuracy > 0.99 ? 'var(--accent)' : 'var(--text)'}; font-size: 1.2em;">${(accuracy * 100).toFixed(2)}%</div>
+            </div>
+            <div>
+              <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Epoch</div>
+              <div style="font-weight: 600; color: var(--text);">E${currentTimelineEpoch >= 0 ? currentTimelineEpoch : epoch}</div>
+            </div>
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 25px;">
+          <h3 style="font-size: 0.9em; color: var(--accent); margin-bottom: 10px;">Context / Examples</h3>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${taskDesc.examples.map(ex => `
+              <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+                <div style="font-size: 0.85em; font-family: 'JetBrains Mono', monospace;">
+                  <span style="color: var(--dim);">IN:</span> ${Array.isArray(ex.input) ? ex.input.join('') : ex.input} 
+                  <span style="color: var(--dim); margin-left: 10px;">OUT:</span> ${ex.output}
+                </div>
+                <div style="font-size: 0.75em; color: var(--dim); margin-top: 4px; font-style: italic;">${ex.explanation}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        
+        <div>
+          <h3 style="font-size: 0.9em; color: var(--accent); margin-bottom: 10px;">Test Cases (Click to Inspect)</h3>
+          <div style="border: 1px solid var(--border); border-radius: 4px; overflow: hidden;">
+            <table style="width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 0.8em;">
+              <thead style="background: rgba(255,255,255,0.05); color: var(--dim); text-align: left;">
+                <tr>
+                  <th style="padding: 8px;">#</th>
+                  <th style="padding: 8px;">Input Pattern</th>
+                  <th style="padding: 8px;">Exp</th>
+                  <th style="padding: 8px;">Got</th>
+                  <th style="padding: 8px;">Result</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+
+      // Get test results
+      const results = tf.tidy(() => {
+        const pred = model.predict(testData.x);
+        let predArr, trueArr;
+        if (taskName === 'ascii_decoder') {
+          predArr = pred.arraySync();
+          trueArr = tf.argMax(testData.y, 1).arraySync();
+        } else {
+          predArr = pred.arraySync().map(row => Math.round(row[0]));
+          trueArr = testData.y.arraySync().map(row => row[0]);
+        }
+        return { predArr, trueArr, xArr: testData.x.arraySync() };
+      });
+
+      // Render first 20 test cases
+      for (let i = 0; i < Math.min(20, results.predArr.length); i++) {
+        const isCorrect = results.predArr[i] === results.trueArr[i];
+        const inputStr = Array.isArray(results.xArr[i]) ? results.xArr[i].map(v => Math.round(v)).join('') : results.xArr[i];
+
+        html += `
+          <tr class="test-case-row" data-test-index="${i}" onclick="selectTestCase(${i}, ${JSON.stringify(results.xArr[i])}, ${JSON.stringify(results.trueArr[i])}, ${JSON.stringify(results.predArr[i])})"
+            style="cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.03); transition: background 0.2s;">
+            <td style="padding: 8px; color: var(--dim);">${i + 1}</td>
+            <td style="padding: 8px;">${inputStr}</td>
+            <td style="padding: 8px;">${results.trueArr[i]}</td>
+            <td style="padding: 8px; color: ${isCorrect ? 'var(--text)' : '#ff4444'}">${results.predArr[i]}</td>
+            <td style="padding: 8px; color: ${isCorrect ? 'var(--accent)' : '#ff4444'}">${isCorrect ? '✓' : '✗'}</td>
+          </tr>
+        `;
+      }
+
+      html += `
+              </tbody>
+            </table>
+          </div>
+          ${results.predArr.length > 20 ? `<div style="text-align: center; color: var(--dim); font-size: 0.75em; padding: 10px;">+ ${results.predArr.length - 20} more cases</div>` : ''}
+        </div>
+      `;
+
+      content.innerHTML = html;
+
+      // Setup modal close handlers
+      document.getElementById("benchmark-modal-close").onclick = () => {
+        modal.style.display = "none";
+      };
+      document.getElementById("benchmark-modal-close-btn").onclick = () => {
+        modal.style.display = "none";
+      };
+
+      document.getElementById("benchmark-run-with-training").onclick = async () => {
+        modal.style.display = "none";
+        await runBenchmark(true);
+      };
+    }
+
+    window.selectTestCase = async function (testCaseIndex, inputArray, expected, predicted) {
+      // Update row selection
+      const rows = document.querySelectorAll('.test-case-row');
+      rows.forEach(row => {
+        row.style.background = 'transparent';
+        row.style.borderLeft = 'none';
+      });
+      const selectedRow = document.querySelector(`.test-case-row[data-test-index="${testCaseIndex}"]`);
+      if (selectedRow) {
+        selectedRow.style.background = 'rgba(68, 255, 136, 0.05)';
+        selectedRow.style.borderLeft = '3px solid var(--accent)';
+      }
+
+      await showInspectionPanel(testCaseIndex, inputArray, expected, predicted);
+    };
+
+    async function showInspectionPanel(testCaseIndex, inputArray, expected, predicted) {
+      const content = document.getElementById("inspection-content");
+
+      if (!content || !model) {
+        logError("Inspection panel or model not available");
+        return;
+      }
+
+      try {
+        content.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--dim);">Tracing inference...</div>';
+
+        // Trace inference internals
+        const xTensor = tf.tensor2d([inputArray]);
+        const trace = {
+          inputRaw: inputArray,
+          expected: expected,
+          predicted: predicted,
+          neuronStates: [],
+          modelType: model.modelType
+        };
+
+        await traceInference(xTensor, trace);
+        xTensor.dispose();
+
+        // Render detailed view
+        renderInspectionView(trace);
+      } catch (err) {
+        content.innerHTML = `
+          <div style="color: #ff4444; padding: 20px;">
+            <h4>Error Tracing Inference</h4>
+            <p style="font-size: 0.8em; margin-top: 10px;">${err.message}</p>
+          </div>
+        `;
+        console.error(err);
+      }
+    }
+
+    async function traceInference(x, trace) {
+      if (model.modelType.startsWith('uit')) {
+        return traceUITInference(x, trace);
+      } else if (model.modelType === 'gru') {
+        return traceGRUInference(x, trace);
+      } else if (model.modelType.startsWith('round')) {
+        return traceROUNDInference(x, trace);
+      }
+    }
+
+    async function traceUITInference(x, trace) {
+      return tf.tidy(() => {
+        const is3D = x.rank === 3;
+        const [batch, seq, dim] = is3D ? x.shape : [x.shape[0], 1, x.shape[1]];
+        trace.inputInfo = { shape: x.shape, is3D, seq, dim };
+
+        let hState = tf.zeros([batch, model.hiddenSize]);
+        const seqLen = is3D ? seq : 1;
+
+        for (let t = 0; t < seqLen; t++) {
+          const xSlice = is3D ? x.slice([0, t, 0], [batch, 1, dim]).reshape([batch, dim]) : x;
+          const result = model.layer.forward(xSlice, hState);
+
+          trace.neuronStates.push({
+            timestep: t,
+            input: xSlice.arraySync()[0],
+            phase: result.phiNext.arraySync()[0],
+            hCos: result.hCos.arraySync()[0],
+            hSin: result.hSin.arraySync()[0],
+            output: result.output.arraySync()[0],
+            confidence: result.confidence.arraySync()[0]
+          });
+
+          hState = result.phiNext;
+        }
+
+        // Readout trace
+        const finalState = trace.neuronStates[trace.neuronStates.length - 1];
+        const hC = tf.tensor2d([finalState.hCos]);
+        const hS = tf.tensor2d([finalState.hSin]);
+        const o = tf.tensor2d([finalState.output]);
+
+        const combined = tf.concat([o, hC, hS], 1);
+        const hidden = tf.tanh(tf.add(tf.matMul(combined, model.readoutW1), model.readoutB1));
+        const logits = tf.add(tf.matMul(hidden, model.readoutW2), model.readoutB2);
+
+        trace.readout = {
+          combined: combined.arraySync()[0],
+          hidden: hidden.arraySync()[0],
+          logits: logits.arraySync()[0]
+        };
+
+        return trace;
+      });
+    }
+
+    async function traceROUNDInference(x, trace) {
+      // Placeholder for ROUND tracing if needed
+      trace.neuronStates.push({ note: "Detailed ROUND tracing not implemented yet" });
+      return trace;
+    }
+
+    async function traceGRUInference(x, trace) {
+      return tf.tidy(() => {
+        const is3D = x.rank === 3;
+        const [batch, seq, dim] = is3D ? x.shape : [x.shape[0], 1, x.shape[1]];
+
+        let hState = tf.zeros([batch, model.hiddenSize]);
+        const seqLen = is3D ? seq : 1;
+
+        for (let t = 0; t < seqLen; t++) {
+          const xSlice = is3D ? x.slice([0, t, 0], [batch, 1, dim]).reshape([batch, dim]) : x;
+          const [hNext, iGate, rGate] = model.forwardStep(xSlice, hState);
+
+          trace.neuronStates.push({
+            timestep: t,
+            input: xSlice.arraySync()[0],
+            hState: hNext.arraySync()[0],
+            iGate: iGate.arraySync()[0],
+            rGate: rGate.arraySync()[0]
+          });
+
+          hState = hNext;
+        }
+
+        const logits = tf.add(tf.matMul(hState, model.Wo), model.Bo);
+        trace.readout = { logits: logits.arraySync()[0] };
+
+        return trace;
+      });
+    }
+
+    function renderInspectionView(trace) {
+      const content = document.getElementById("inspection-content");
+      const isCorrect = trace.predicted === trace.expected;
+
+      let html = `
+        <div style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+            <div>
+              <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase;">Model Type</div>
+              <div style="font-weight: 600; color: var(--accent);">${trace.modelType.toUpperCase()}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.7em; color: var(--dim); text-transform: uppercase;">Inference Result</div>
+              <div style="font-weight: 700; color: ${isCorrect ? 'var(--accent)' : '#ff4444'}; font-size: 1.1em;">
+                ${isCorrect ? 'SUCCESS' : 'FAILURE'}
+              </div>
+            </div>
+          </div>
+          
+          <div style="display: flex; gap: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-family: 'JetBrains Mono', monospace;">
+            <div style="flex: 1; border-right: 1px solid var(--border);">
+              <div style="font-size: 0.7em; color: var(--dim);">Expected</div>
+              <div style="font-size: 1.2em; font-weight: 700;">${trace.expected}</div>
+            </div>
+            <div style="flex: 1;">
+              <div style="font-size: 0.7em; color: var(--dim);">Predicted</div>
+              <div style="font-size: 1.2em; font-weight: 700; color: ${isCorrect ? 'var(--text)' : '#ff4444'}">${trace.predicted}</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (trace.modelType.startsWith('uit')) {
+        html += renderUITDetails(trace);
+      } else if (trace.modelType === 'gru') {
+        html += renderGRUDetails(trace);
+      }
+
+      content.innerHTML = html;
+    }
+
+    function renderUITDetails(trace) {
+      let html = `
+        <div style="margin-bottom: 20px;">
+          <h4 style="font-size: 0.85em; color: var(--accent); margin-bottom: 8px;">Recurrent States (Timeline)</h4>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            ${trace.neuronStates.map(s => `
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 10px; font-family: 'JetBrains Mono', monospace;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span style="color: var(--accent); font-weight: 600; font-size: 0.8em;">T: ${s.timestep}</span>
+                  <span style="color: var(--dim); font-size: 0.75em;">Input: ${Array.isArray(s.input) ? s.input.map(v => Math.round(v)).join('') : s.input}</span>
+                </div>
+                <!-- Mini Visualization of Phase States -->
+                <div style="display: flex; gap: 1px; height: 12px; margin: 8px 0;">
+                  ${s.phase.slice(0, 32).map(phi => {
+        const hue = (phi / (2 * Math.PI)) * 360;
+        return `<div style="flex: 1; background: hsl(${hue}, 80%, 50%); border-radius: 1px;" title="Phase: ${phi.toFixed(2)}"></div>`;
+      }).join('')}
+                </div>
+                <div style="display: flex; gap: 10px; font-size: 0.7em;">
+                   <div style="flex: 1;"><span style="color: var(--dim);">Avg Confidence:</span> ${(s.confidence.reduce((a, b) => a + b, 0) / s.confidence.length).toFixed(3)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        
+        <div>
+          <h4 style="font-size: 0.85em; color: var(--accent); margin-bottom: 8px;">Final Readout (v1.3.12 Manifold)</h4>
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.75em;">
+            <div style="margin-bottom: 8px;">
+              <div style="color: var(--dim); margin-bottom: 2px;">Combined Vector (Standard + H-Cos + H-Sin)</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 1px;">
+                ${trace.readout.combined.slice(0, 64).map(v => {
+        const opacity = Math.abs(v);
+        const color = v > 0 ? `rgba(68, 255, 136, ${opacity})` : `rgba(255, 68, 68, ${opacity})`;
+        return `<div style="width: 6px; height: 6px; background: ${color};" title="Value: ${v.toFixed(3)}"></div>`;
+      }).join('')}
+              </div>
+            </div>
+            <div style="margin-bottom: 8px;">
+              <div style="color: var(--dim); margin-bottom: 2px;">Readout Hidden (Tanh)</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 1px;">
+                ${trace.readout.hidden.slice(0, 32).map(v => {
+        const opacity = Math.abs(v);
+        const color = v > 0 ? `rgba(68, 255, 136, ${opacity})` : `rgba(255, 68, 68, ${opacity})`;
+        return `<div style="width: 8px; height: 8px; background: ${color};" title="Value: ${v.toFixed(3)}"></div>`;
+      }).join('')}
+              </div>
+            </div>
+            <div>
+              <div style="color: var(--dim); margin-bottom: 2px;">Logits</div>
+              <div style="display: flex; gap: 4px;">
+                ${trace.readout.logits.map(v => `<div style="padding: 2px 5px; background: rgba(255,255,255,0.1); border-radius: 2px;">${v.toFixed(3)}</div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      return html;
+    }
+
+    function renderGRUDetails(trace) {
+      let html = `
+        <div style="margin-bottom: 20px;">
+          <h4 style="font-size: 0.85em; color: var(--accent); margin-bottom: 8px;">GRU Gate Activations</h4>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            ${trace.neuronStates.map(s => `
+              <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 10px; font-family: 'JetBrains Mono', monospace;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span style="color: var(--accent); font-weight: 600; font-size: 0.8em;">T: ${s.timestep}</span>
+                  <span style="color: var(--dim); font-size: 0.75em;">Input: ${Array.isArray(s.input) ? s.input.map(v => Math.round(v)).join('') : s.input}</span>
+                </div>
+                <div style="margin-bottom: 5px;">
+                  <div style="font-size: 0.6em; color: var(--dim);">Update Gate (iGate)</div>
+                  <div style="display: flex; gap: 1px; height: 6px;">
+                    ${s.iGate.slice(0, 32).map(v => `<div style="flex: 1; background: rgba(68, 255, 136, ${v});"></div>`).join('')}
+                  </div>
+                </div>
+                <div>
+                  <div style="font-size: 0.6em; color: var(--dim);">Reset Gate (rGate)</div>
+                  <div style="display: flex; gap: 1px; height: 6px;">
+                    ${s.rGate.slice(0, 32).map(v => `<div style="flex: 1; background: rgba(68, 255, 136, ${v});"></div>`).join('')}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        
+        <div>
+          <h4 style="font-size: 0.85em; color: var(--accent); margin-bottom: 8px;">GRU Readout</h4>
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.75em;">
+            <div style="color: var(--dim); margin-bottom: 2px;">Logits</div>
+            <div style="display: flex; gap: 4px;">
+              ${trace.readout.logits.map(v => `<div style="padding: 2px 5px; background: rgba(255,255,255,0.1); border-radius: 2px;">${v.toFixed(3)}</div>`).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      return html;
+    }
+
     function downloadCheckpoint(cp) {
       if (!cp) {
         logError("No checkpoint provided for download");
@@ -4324,7 +4832,7 @@
     document.getElementById("model-select").onchange = () => {
       const modelType = document.getElementById("model-select").value;
       const uitParams = document.getElementById("uit-params");
-      if (modelType === "uit_v1.0") {
+      if (modelType === "uit_v1.3.12") {
         uitParams.style.display = "block";
       } else {
         uitParams.style.display = "none";
@@ -4437,6 +4945,33 @@
       const atLatest = targetEpoch >= N - 1;
       timelineMode = atLatest ? "live" : "scrubbing";
       currentTimelineEpoch = targetEpoch;
+
+      // Load weights for the scrubbed epoch if available
+      if (!atLatest) {
+        let nearestEpoch = null;
+        let minDistance = Infinity;
+        Object.keys(cpHistory).forEach(e => {
+          const dist = Math.abs(parseInt(e) - targetEpoch);
+          if (dist < minDistance) {
+            minDistance = dist;
+            nearestEpoch = parseInt(e);
+          }
+        });
+        if (nearestEpoch !== null && cpHistory[nearestEpoch]) {
+          try {
+            model.importWeights(cpHistory[nearestEpoch].weights);
+          } catch (e) {
+            console.warn("Failed to load weights for epoch " + nearestEpoch);
+          }
+        }
+      } else if (atLatest && trainingWeights) {
+        // Returning to live mode: Restore actual training weights
+        try {
+          model.importWeights(trainingWeights);
+        } catch (e) {
+          console.warn("Failed to restore training weights:", e);
+        }
+      }
 
       // Update metrics display
       if (targetEpoch >= 0 && targetEpoch < hist.acc.length) {
@@ -4595,6 +5130,52 @@
 
     init();
   </script>
+
+  <!-- Benchmark Modal -->
+  <div id="benchmark-modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: rgba(0,0,0,0.85); z-index: 1001; overflow: hidden; box-sizing: border-box;">
+    <div
+      style="width: 100%; height: 100%; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; gap: 20px;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+        <h2 style="margin: 0; color: var(--accent); font-size: 1.2em;">🔍 Test Inspection</h2>
+        <button id="benchmark-modal-close"
+          style="background: transparent; border: none; color: var(--text); font-size: 1.5em; cursor: pointer; padding: 0 10px;">×</button>
+      </div>
+
+      <!-- Main Content Area - Side by side -->
+      <div style="flex: 1; min-height: 0; display: flex; gap: 15px; overflow: hidden;">
+        <!-- Benchmark Content Panel -->
+        <div
+          style="width: 50%; min-width: 500px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; box-sizing: border-box; overflow: hidden;">
+          <div id="benchmark-content" style="flex: 1; min-height: 0; overflow-y: auto; padding-right: 8px;">
+            <!-- Will be populated by JavaScript -->
+          </div>
+
+          <div
+            style="display: flex; gap: 10px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); flex-shrink: 0;">
+            <button id="benchmark-run-with-training"
+              style="flex: 1; padding: 10px; background: var(--accent); border: none; color: var(--bg); cursor: pointer; border-radius: 3px; font-size: 0.9em; font-weight: 600;">▶
+              TRAIN</button>
+            <button id="benchmark-modal-close-btn"
+              style="flex: 1; padding: 10px; cursor: pointer; border-radius: 3px; font-size: 0.9em;">Close</button>
+          </div>
+        </div>
+
+        <!-- Inspection Panel - Always visible -->
+        <div id="inspection-panel"
+          style="flex: 1; min-width: 400px; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 15px; box-sizing: border-box; overflow: hidden;">
+          <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;">
+            <h3 style="margin: 0; color: var(--accent); font-size: 1em;">🔍 Inference Inspection</h3>
+          </div>
+          <div id="inspection-content" style="flex: 1; min-height: 0; overflow-y: auto;">
+            <div style="text-align: center; padding: 40px; color: var(--dim);">Select a test case to inspect</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Settings Modal -->
   <div id="settings-modal"
