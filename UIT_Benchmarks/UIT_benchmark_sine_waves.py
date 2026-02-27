@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -24,7 +24,7 @@ def ensure_dir(path):
 
 # --- SINE WAVE ROUND (Refined) ---
 class SineROUND(nn.Module):
-    def __init__(self, hidden_size=32, harmonics=[1], persistence=0.5):
+    def __init__(self, hidden_size=32, harmonics=[0.5], persistence=0.0):
         super().__init__()
         self.uit = UITModel(
             input_size=1, 
@@ -70,15 +70,17 @@ def run_benchmark(args):
     # CONFIG
     SEQ_LEN = 100
     BATCH_SIZE = 32
-    EPOCHS = 3001 # Memory Core "Double Bake" Standard
-    LR = args.lr if args.lr is not None else 0.001 # Battery compatibility
-    HIDDEN = 32
-    HARMONICS = [1] # Riemannian Native State (Sovereign Resonance)
+    from config import CONTINUOUS_CONFIG
+    EPOCHS = CONTINUOUS_CONFIG['EPOCHS']
+    LR = args.lr if args.lr is not None else CONTINUOUS_CONFIG['LR']
+    HIDDEN = CONTINUOUS_CONFIG['HIDDEN_R']
+    HARMONICS = CONTINUOUS_CONFIG['HARMONICS']
+    PERSISTENCE = CONTINUOUS_CONFIG['PERSISTENCE']
     
     print(f"--- [RIEMANNIAN TOPOLOGICAL RECOVERY | UID: {args.uid}] ---")
     print(f"Goal: Recover continuous signal curvature from Phasic Identity (H={HARMONICS})")
     
-    round_model = SineROUND(hidden_size=HIDDEN, harmonics=HARMONICS).to(DEVICE)
+    round_model = SineROUND(hidden_size=HIDDEN, harmonics=HARMONICS, persistence=PERSISTENCE).to(DEVICE)
     gru_model = SineGRU(hidden_size=HIDDEN).to(DEVICE)
     
     r_opt = optim.Adam(round_model.parameters(), lr=LR)

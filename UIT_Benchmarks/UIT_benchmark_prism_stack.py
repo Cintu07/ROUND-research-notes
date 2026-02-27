@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import os
 import sys
 import torch
@@ -30,7 +30,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # --- CONFIGURATION ---
 BATCH_SIZE = 64
 EPOCHS = 2000 # budget for logic crystallization
-LEARNING_RATE = args.lr if args.lr is not None else 0.001 
+from config import TOPOLOGY_CONFIG
+LEARNING_RATE = args.lr if args.lr is not None else TOPOLOGY_CONFIG['LR']
 HIDDEN_SIZE = 18  # Match modular space (like Color Algebra's 64/64)
 
 class PrismROUND(nn.Module):

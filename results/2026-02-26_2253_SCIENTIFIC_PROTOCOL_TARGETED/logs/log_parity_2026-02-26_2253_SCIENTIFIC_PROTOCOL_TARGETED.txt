@@ -1,0 +1,14 @@
+[22:54:15] Batch UID: 2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED
+[22:54:15] Run Config: {'task': 'parity_16', 'input_dim': 1, 'seq_len': 16, 'hidden_r': 1, 'hidden_g': 128, 'epochs': 400, 'batch_size': 64, 'dataset_size': 2000, 'lr': 0.00390625, 'device': device(type='cuda')}
+[22:54:15] Training ROUND (Resonant Logic)
+[22:54:16] R1 E0: TestAcc=100.00% | Lock=0.0014 | Conf=0.5478
+[22:54:20] R1 E100: TestAcc=100.00% | Lock=0.0406 | Conf=0.7552
+[22:54:20] R1 CRYSTAL LOCKED at Epoch 101. Success.
+[22:54:20] Training GRU (Vector Logic)
+[22:54:20] G1 E0: TestAcc=48.90% | Loss=0.6941
+[22:54:21] G1 E100: TestAcc=49.80% | Loss=0.6915
+[22:54:21] G1 E200: TestAcc=51.60% | Loss=0.6675
+[22:54:22] G1 E300: TestAcc=51.60% | Loss=0.6020
+[22:54:23] G1 E399: TestAcc=51.60% | Loss=0.5231
+[22:54:23] Generating Hypertorus Projection...
+[22:54:24] Plot saved to: results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED\plots\parity_duel_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png

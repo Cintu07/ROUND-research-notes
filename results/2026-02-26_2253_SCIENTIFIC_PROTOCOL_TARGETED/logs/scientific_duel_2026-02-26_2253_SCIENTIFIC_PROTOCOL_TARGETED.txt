@@ -1,0 +1,51 @@
+[22:53:05] Starting Industrial Crystalline Duel (TARGETED) | UID: 2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED
+[22:53:05] --- PHASE 0: GRU BASELINE TRAINING ---
+[22:53:07] GRU Step 0 | Global Dec: 0.39% | Global Enc: 0.78%
+[22:53:09] GRU Step 100 | Global Dec: 9.77% | Global Enc: 14.84%
+[22:53:11] GRU Step 200 | Global Dec: 29.30% | Global Enc: 40.62%
+[22:53:13] GRU Step 300 | Global Dec: 55.47% | Global Enc: 66.80%
+[22:53:15] GRU Step 400 | Global Dec: 79.30% | Global Enc: 92.58%
+[22:53:17] GRU Step 500 | Global Dec: 91.80% | Global Enc: 99.22%
+[22:53:19] GRU Step 600 | Global Dec: 97.66% | Global Enc: 85.16%
+[22:53:21] GRU Step 700 | Global Dec: 100.00% | Global Enc: 99.61%
+[22:53:23] GRU Step 800 | Global Dec: 100.00% | Global Enc: 99.61%
+[22:53:26] GRU Step 900 | Global Dec: 100.00% | Global Enc: 99.61%
+[22:53:28] GRU Step 1000 | Global Dec: 100.00% | Global Enc: 100.00%
+[22:53:28] --- [GRU BASELINE LOCKED GLOBALLY AT EPOCH 1000] ---
+[22:53:28] --- PHASE 1: UIT-ROUND CRYSTALLIZATION ---
+[22:53:28] UIT Decoder 0 | Global Acc: 3.91% | Conf: 0.2100
+[22:53:29] UIT Decoder 50 | Global Acc: 31.25% | Conf: 0.2302
+[22:53:31] UIT Decoder 100 | Global Acc: 42.19% | Conf: 0.2473
+[22:53:32] UIT Decoder 150 | Global Acc: 46.09% | Conf: 0.2585
+[22:53:34] UIT Decoder 200 | Global Acc: 52.73% | Conf: 0.2693
+[22:53:35] UIT Decoder 250 | Global Acc: 53.91% | Conf: 0.2790
+[22:53:36] UIT Decoder 300 | Global Acc: 60.55% | Conf: 0.2877
+[22:53:38] UIT Decoder 350 | Global Acc: 64.45% | Conf: 0.2946
+[22:53:39] UIT Decoder 400 | Global Acc: 71.09% | Conf: 0.3005
+[22:53:41] UIT Decoder 450 | Global Acc: 68.75% | Conf: 0.3065
+[22:53:42] UIT Decoder 500 | Global Acc: 78.52% | Conf: 0.3131
+[22:53:44] UIT Decoder 550 | Global Acc: 90.23% | Conf: 0.3141
+[22:53:45] UIT Decoder 600 | Global Acc: 93.75% | Conf: 0.3147
+[22:53:47] UIT Decoder 650 | Global Acc: 97.66% | Conf: 0.3151
+[22:53:48] --- [UIT DECODER LOCKED GLOBALLY AT EPOCH 696] ---
+[22:53:48] --- PHASE 2: UIT ENCODER CRYSTALLIZATION ---
+[22:53:48] UIT Encoder 0 | Global Acc: 0.39% | Conf: 0.2922
+[22:53:49] UIT Encoder 50 | Global Acc: 14.84% | Conf: 0.2910
+[22:53:49] UIT Encoder 100 | Global Acc: 93.36% | Conf: 0.2918
+[22:53:49] --- [UIT ENCODER LOCKED GLOBALLY AT EPOCH 131] ---
+[22:53:50] --- PHASE 6: EXTERNAL BENCHMARK SUITE (TARGETED) ---
+[22:53:50] RUNNING: UIT_benchmark_crystalline_loop.py
+[22:53:57] SUCCESS: UIT_benchmark_crystalline_loop.py
+[22:53:57] RUNNING: UIT_benchmark_sandwich_duel.py
+[22:54:10] SUCCESS: UIT_benchmark_sandwich_duel.py
+[22:54:10] RUNNING: UIT_benchmark_parity_16.py
+[22:54:25] SUCCESS: UIT_benchmark_parity_16.py
+[22:54:25] RUNNING: UIT_benchmark_majority_8.py
+[22:54:42] SUCCESS: UIT_benchmark_majority_8.py
+[22:54:42] RUNNING: UIT_benchmark_color_algebra.py
+[22:54:59] SUCCESS: UIT_benchmark_color_algebra.py
+[22:54:59] RUNNING: UIT_benchmark_prism_stack.py
+[22:55:31] SUCCESS: UIT_benchmark_prism_stack.py
+[22:55:31] RUNNING: UIT_benchmark_sine_waves.py
+[22:58:34] SUCCESS: UIT_benchmark_sine_waves.py
+[22:58:34] Targeted Workshop complete. Results in: results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED

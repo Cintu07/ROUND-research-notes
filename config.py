@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import math
 
 # ROUND Configuration
@@ -55,6 +55,16 @@ TOPOLOGY_CONFIG = {
     'DELAYED_LOCKING': 0.5
 }
 
+# 1b. CONTINUOUS TOPOLOGY (Sine Waves, Spatio-Temporal Tracking)
+CONTINUOUS_CONFIG = {
+    'HIDDEN_R': 32,
+    'HIDDEN_G': 128,
+    'HARMONICS': [0.5],  # 4pi Spinortorus geometry to eliminate wrapping bounds
+    'PERSISTENCE': 0.0,  # Velocity tracking mode for continuous non-binary topology
+    'EPOCHS': 3001,
+    'LR': 0.001953125,   # 2^-9
+}
+
 # 2. PARITY (Modulo-2 Logic)
 PARITY_CONFIG = {
     'HIDDEN_R': 1,
@@ -63,7 +73,19 @@ PARITY_CONFIG = {
     'HARMONICS': [1],
     'EPOCHS': 400,
     'FLOOR': 0.03125,
-    'LR': 0.01,
+    'LR': 0.00390625, # 2^-8 (Stabilized from wobble at 2^-7)
+    'DELAYED_LOCKING': 0.5
+}
+
+# 2b. MAJORITY VOTE (8-bit, Counting > 4)
+MAJORITY_CONFIG = {
+    'HIDDEN_R': 8,
+    'HIDDEN_G': 128,
+    'PEAK_LOCKING_STRENGTH': 0.125,
+    'HARMONICS': [1],
+    'EPOCHS': 1000,
+    'FLOOR': 0.03125,
+    'LR': 0.001953125,      # 2^-9 (Optimal: epoch 56 lock in sweep)
     'DELAYED_LOCKING': 0.5
 }
 
@@ -87,7 +109,7 @@ COLORS_CONFIG = {
     'HARMONICS': [1, 2, 4, 8],
     'EPOCHS': 800,
     'FLOOR': 0.015625,    # 2^-6 (More Wiggle Room)
-    'LR': 0.0009765625,  # 2^-10 (Lower Heat)
+    'LR': 0.0078125, # 2^-7 (Proven in targeted battery)
     'WOBBLE': True,
     'WOBBLE_GRAVITY': 0.0, # Pure Drift
     'WOBBLE_COUPLING': -1.0,
@@ -102,7 +124,7 @@ ASCII_CONFIG = {
     'HARMONICS': [1, 2, 4, 8],
     'EPOCHS': 400,
     'FLOOR': 0.125,
-    'LR': 0.001953125, # 2^-9
+    'LR': 0.0078125, # 2^-7 (Proven in targeted battery)
     'WOBBLE_GRAVITY': 0.1,
     'WOBBLE_COUPLING': -1.0,
     'TERMINAL_ONLY': False

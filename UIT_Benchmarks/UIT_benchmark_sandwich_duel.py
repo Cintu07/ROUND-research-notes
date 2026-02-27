@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import sys
 import os
 import argparse
@@ -193,7 +193,7 @@ def plot_sandwich_story(results, output_dir, uid, args):
     # Scale the "Logic Plane" based on GRU accuracy (Relay success)
     plane_size = results['g_relay'] * 1.5 
     rect = plt.Rectangle((-plane_size, -plane_size), plane_size*2, plane_size*2, 
-                         color=c_gru, alpha=0.08, zorder=1, label=f'GRU Logic Plane ({results["g_relay"]:.1%})',
+                         facecolor=c_gru, alpha=0.08, zorder=1, label=f'GRU Logic Plane ({results["g_relay"]:.1%})',
                          edgecolor=c_gru, linewidth=1.5)
     ax3.add_patch(rect)
 
@@ -300,8 +300,8 @@ def run_duel(args):
     if G_DEC_P and os.path.exists(G_DEC_P): 
         # Checking ENC too usually, but let's be lenient
         try:
-            g_dec.load_state_dict(torch.load(G_DEC_P, map_location=DEVICE)); g_dec.eval()
-            g_enc.load_state_dict(torch.load(G_ENC_P, map_location=DEVICE)); g_enc.eval()
+            g_dec.load_state_dict(torch.load(G_DEC_P, map_location=DEVICE, weights_only=True)); g_dec.eval()
+            g_enc.load_state_dict(torch.load(G_ENC_P, map_location=DEVICE, weights_only=True)); g_enc.eval()
             has_gru = True
             print("GRU Models Loaded.")
         except:
@@ -407,5 +407,6 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=None)
     
     args = parser.parse_args()
-    if args.lr is None: args.lr = 0.0078125 # Default obsidian
+    from config import ASCII_CONFIG
+    if args.lr is None: args.lr = ASCII_CONFIG['LR']
     run_duel(args)

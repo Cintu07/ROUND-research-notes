@@ -1,10 +1,10 @@
-cff-version: 1.2.0
+cff-version: 1.3.14
 message: "If you use this software, please cite it as below."
 authors:
-- family-names: "Gus"
-  given-names: "The User"
-- family-names: "Lexideck"
-  given-names: "Research Team"
+  - family-names: "Gus"
+    given-names: "The User"
+  - family-names: "Lexideck"
+    given-names: "Research Team"
 title: "Harmonic ROUND: The Phasic Neuro-Symbolic Generalist"
 version: 0.6.2
 date-released: 2025-12-13

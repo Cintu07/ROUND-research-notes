@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import sys
 import os
 import torch
@@ -218,11 +218,17 @@ def crystallize_uit():
     torch.save(r_enc.state_dict(), f"{CRYSTAL_DIR}/uit_enc_{UID}.pt")
     return r_dec, r_enc, None
 
+from config import PARITY_CONFIG, MAJORITY_CONFIG, COLORS_CONFIG, TOPOLOGY_CONFIG, ASCII_CONFIG, CONTINUOUS_CONFIG
+
 def get_lr_for_task(script_name):
-    if "prism_stack" in script_name: return 0.001 
-    if "sine_waves" in script_name: return 0.001
-    if "color_algebra" in script_name: return 0.0078125 
-    return 0.0078125 
+    if "parity" in script_name: return PARITY_CONFIG['LR']
+    if "majority" in script_name: return MAJORITY_CONFIG['LR']
+    if "color_algebra" in script_name: return COLORS_CONFIG['LR']
+    if "sine_waves" in script_name: return CONTINUOUS_CONFIG['LR']
+    if "prism_stack" in script_name: return TOPOLOGY_CONFIG['LR']
+    if "crystalline_loop" in script_name: return TOPOLOGY_CONFIG['LR']
+    if "sandwich_duel" in script_name: return ASCII_CONFIG['LR']
+    return 0.0078125 # Absolute Fallback
 
 # --- PHASE 6: EXTERNAL BENCHMARK INTEGRATION ---
 def run_external_benchmarks():
@@ -232,6 +238,8 @@ def run_external_benchmarks():
     suite = [
         "UIT_benchmark_crystalline_loop.py",
         "UIT_benchmark_sandwich_duel.py",
+        "UIT_benchmark_parity_16.py",
+        "UIT_benchmark_majority_8.py",
         "UIT_benchmark_color_algebra.py",
         "UIT_benchmark_prism_stack.py",
         "UIT_benchmark_sine_waves.py"

@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -33,7 +33,8 @@ os.makedirs(LOG_DIR, exist_ok=True)
 # --- CONFIGURATION ---
 BATCH_SIZE = 64
 EPOCHS = 1000 
-LEARNING_RATE = args.lr if args.lr is not None else 0.0078125 # Default 2^-7
+from config import COLORS_CONFIG
+LEARNING_RATE = args.lr if args.lr is not None else COLORS_CONFIG['LR']
 HIDDEN_SIZE = 64 
 NUM_COLORS = 64 
 

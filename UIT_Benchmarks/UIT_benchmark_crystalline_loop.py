@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import sys
 import os
 import torch
@@ -71,10 +71,10 @@ def run_loop_benchmark(args):
 
     g_dec = GRUDec().to(DEVICE); g_enc = GRUEnc().to(DEVICE)
     if os.path.exists(gru_dec_path): 
-        try: g_dec.load_state_dict(torch.load(gru_dec_path)); print("Loaded GRU Dec.")
+        try: g_dec.load_state_dict(torch.load(gru_dec_path, weights_only=True)); print("Loaded GRU Dec.")
         except: pass
     if os.path.exists(gru_enc_path):
-        try: g_enc.load_state_dict(torch.load(gru_enc_path)); print("Loaded GRU Enc.")
+        try: g_enc.load_state_dict(torch.load(gru_enc_path, weights_only=True)); print("Loaded GRU Enc.")
         except: pass
 
     # 3. SETUP LOGGING DIRECTORY
@@ -182,7 +182,7 @@ def run_loop_benchmark(args):
         # Scale the "Logic Plane" based on GRU accuracy
         plane_size = (g_success/256.0) * 1.0
         rect = plt.Rectangle((-plane_size, -plane_size), plane_size*2, plane_size*2, 
-                             color='steelblue', alpha=0.08, zorder=1, label=f'GRU Logic Plane ({g_success/256:.0%})',
+                             facecolor='steelblue', alpha=0.08, zorder=1, label=f'GRU Logic Plane ({g_success/256:.0%})',
                              edgecolor='steelblue', linewidth=1.5)
         ax3.add_patch(rect)
 

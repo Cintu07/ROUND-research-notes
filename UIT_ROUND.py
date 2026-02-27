@@ -1,4 +1,4 @@
-# UIT-ROUND v1.3.12
+# UIT-ROUND v1.3.14
 import torch
 import torch.nn as nn
 import numpy as np
@@ -86,7 +86,7 @@ class UITNeuronCell(nn.Module):
             q_sieve = torch.round(phi_next / (np.pi / 4)) * (np.pi / 4)
             phi_next = phi_next + self.quantization_strength * (q_sieve - phi_next)
         
-        phi_next = torch.remainder(phi_next, 2.0 * np.pi * multiplier)
+        # phi_next = torch.remainder(phi_next, 2.0 * np.pi * multiplier) # Dexter: Restoring Path Integral Memory (Section 11)
         h_cos = torch.zeros_like(phi_next)
         h_sin = torch.zeros_like(phi_next)
         for idx, h in enumerate(self.harmonics):
@@ -94,6 +94,9 @@ class UITNeuronCell(nn.Module):
             h_sin += self.diagnostic_harmonics[:, idx] * torch.sin(h * phi_next)
             
         confidence = (h_cos.abs() / len(self.harmonics)).detach()
+        # THE U-SPACE OUTPUT: x(1 + epsilon*hCos) + alpha*phi
+        # We restore the 'Spiral' by allowing the path (phi_next) to influence the output density.
+        # Singularity Suppression: Torus-Locked Output (removed linear phase drift)
         output = standard_part * (1.0 + self.epsilon * h_cos)
         if self.use_binary_alignment:
             output = output + 0.1 * h_cos
@@ -155,7 +158,7 @@ class UITModel(nn.Module):
 
     def save_model(self, path): torch.save(self.state_dict(), path)
     def load_model(self, path, freeze=True):
-        self.load_state_dict(torch.load(path, map_location='cpu'))
+        self.load_state_dict(torch.load(path, map_location='cpu', weights_only=True))
         if freeze:
             for p in self.parameters(): p.requires_grad = False
 
