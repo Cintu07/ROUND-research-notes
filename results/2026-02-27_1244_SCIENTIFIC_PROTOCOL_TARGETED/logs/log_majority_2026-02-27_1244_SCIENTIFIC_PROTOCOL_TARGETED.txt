@@ -1,0 +1,19 @@
+[12:45:53] Batch UID: 2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED
+[12:45:53] Run Config: {'task': 'majority_8', 'input_dim': 1, 'seq_len': 8, 'hidden_r': 8, 'hidden_g': 128, 'epochs': 1000, 'batch_size': 64, 'dataset_size': 2000, 'lr': 0.001953125, 'device': device(type='cuda')}
+[12:45:53] Training ROUND (Resonant Logic)
+[12:45:54] R1 E0: TestAcc=59.90% | Lock=0.0014 | Conf=0.3291
+[12:45:55] R1 CRYSTAL LOCKED at Epoch 52. Success.
+[12:45:55] Training GRU (Vector Logic)
+[12:45:55] G1 E0: TestAcc=59.90% | Loss=0.6831
+[12:45:56] G1 E100: TestAcc=97.00% | Loss=0.1607
+[12:45:56] G1 E200: TestAcc=100.00% | Loss=0.0564
+[12:45:57] G1 E300: TestAcc=100.00% | Loss=0.0235
+[12:45:57] G1 E400: TestAcc=100.00% | Loss=0.0116
+[12:45:58] G1 E500: TestAcc=100.00% | Loss=0.0066
+[12:45:58] G1 E600: TestAcc=100.00% | Loss=0.0042
+[12:45:59] G1 E700: TestAcc=100.00% | Loss=0.0029
+[12:46:00] G1 E800: TestAcc=100.00% | Loss=0.0021
+[12:46:00] G1 E900: TestAcc=100.00% | Loss=0.0016
+[12:46:01] G1 E999: TestAcc=100.00% | Loss=0.0012
+[12:46:01] Generating Majority Duel Report...
+[12:46:01] Plot saved to: results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED\plots\majority_duel_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png

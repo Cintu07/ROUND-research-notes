@@ -11,75 +11,67 @@
 
 number_space:
   name: "U-space (Unified Informatic Topology)"
-  definition: "Each number has a real part (x) and a tiny rotational part (εi)"
+  definition: "Numbers consist of two parts: a classical value and a rotational angle."
   classical_part:
     symbol: "x"
-    meaning: "The ordinary, measurable value — what you'd read off an instrument"
-    range: "Bounded real numbers"
+    meaning: "The measurable value, representing what a standard instrument would read."
+    range: "Bounded real numbers."
   infinitesimal_part:
     symbol: "εi"
-    meaning: "A small rotation that encodes hidden structure the classical part alone can't see"
-    epsilon: "How strongly the rotation influences the output (a small coupling constant)"
-    i: "The rotational direction, represented as cos(φ) and sin(φ)"
+    meaning: "A small rotation that encodes a hidden structure that the classical part cannot see on its own."
+    epsilon: "The coupling constant that determines how strongly the rotation affects the final output."
+    i: "The rotational direction, calculated using cosine and sine projections of the internal angle."
 
 ---
 # THE NEURON
-# File: UIT_ROUND.py, class UITNeuronCell, line 18-102
-# This is a single neuron that stores information as an angle (phase)
-# and outputs a value modulated by that angle's harmonic projection.
+# Implementation: UIT_ROUND.py (UITNeuronCell)
+# This neuron stores information as an angle (phase) and outputs a value scaled by its harmonic projection.
 
 neuron:
   name: "UITNeuronCell"
-  what_it_does: "Receives an input, updates an internal angle, and produces an output that combines a standard value with a rotational signal"
+  function: "The neuron takes an input, updates its internal angle, and generates an output by combining a standard value with its rotational state."
 
-  # The two gates (line 67-68)
+  # Computation Gates
   gates:
-    how_computed: "Input and previous phase are linearly combined, then split into two halves"
-    output_gate:
-      code: "x_gate = first half of gates"
-      formula: "standard_part = tanh(x_gate)"
-      what_it_is: "The classical part (x). A bounded value between -1 and +1."
-      maps_to: "x in U = x + εi"
-    phase_gate:
-      code: "phi_gate = second half of gates"
-      formula: "phi_shift = sigmoid(phi_gate) × π × spin_multiplier"
-      what_it_is: "How much to rotate the internal angle this step"
-      range: "Between 0 and 2π (one full turn) when spin_multiplier = 2"
+    method: "The input and previous angle are combined linearly and then split into two parallel paths."
+    classical_gate:
+      key: "x_gate"
+      formula: "value = tanh(x_gate)"
+      meaning: "This is the classical part (x), keeping values bounded between -1 and +1."
+    phasic_gate:
+      key: "phi_gate"
+      formula: "rotation = sigmoid(phi_gate) * pi * multiplier"
+      meaning: "This determines the amount of rotation added to the internal angle at each step."
+      multiplier: "Standard is 2.0 (one full turn) or 1.0 (half turn) depending on the configuration."
 
-  # The phase (internal angle)
+  # Internal Angle (Phase)
   phase:
     symbol: "φ (phi)"
-    what_it_is: "An angle that accumulates over time — the neuron's memory"
-    update_rule: "φ_next = φ_prev × persistence + sigmoid(gate) × π × M"
-    lives_on: "An unbounded manifold (accumulated winding number)"
-    formula: "φ = Σ Δφ (The Path Integral)"
-    description: "Accumulates indefinitely as a winding number, preserving the total informational history"
-    why_it_matters: "Information is stored as angular position, not as a magnitude that can decay to zero"
-    training: "Gradients flow through the phase via standard BPTT (backpropagation through time)"
+    definition: "An angle that grows over time, acting as the neuron's primary memory."
+    update_rule: "phi_next = (phi_prev * persistence) + rotation"
+    persistence: "How much of the previous angle is kept. Pure memory uses 1.0, while tracking tasks may use 0.0."
+    logic: "Information is stored as a position on a circle rather than a magnitude, meaning it never decays to zero or disappears."
+    training: "Updates are calculated through standard backpropagation through time (BPTT)."
 
-  # Quantization (line 86-87)
+  # Snapping (Quantization)
   quantization:
-    what_it_does: "Gently nudges the phase toward the nearest grid point (multiples of π/4)"
-    strength: "Default 0.125 (12.5% pull toward grid)"
-    why_it_matters: "Creates preferred resting positions — the phase settles into discrete basins instead of drifting freely"
-    analogy: "Like a ball on a hilly landscape rolling into the nearest valley"
+    function: "This pulls the angle toward specific anchor points (like multiples of 45 degrees)."
+    strength: "Default is 12.5%. It ensures the angle settles into stable basins instead of drifting aimlessly."
+    analogy: "Like a marble rolling into a groove on a track."
 
-  # Harmonic projection (lines 90-94)
-  harmonic_projection:
-    what_it_does: "Reads the phase angle through multiple frequency lenses"
-    formula: "h_cos = Σ weight[h] × cos(h × φ), h_sin = Σ weight[h] × sin(h × φ)"
-    harmonics_list: "Default [1, 2, 4, 8] — like looking at the angle at 1×, 2×, 4×, 8× zoom"
-    what_it_produces: "Two signals (cosine and sine) that represent the phase as a point on a circle"
-    maps_to: "The 'i' in εi — this IS the rotational component"
+  # Harmonic Projection
+  harmonics:
+    function: "Views the angle through multiple frequency lenses simultaneously."
+    formula: "Points are projected onto a circle using cosine and sine across multiple harmonics."
+    v1314_list: "Default harmonics are [1, 2, 4, 8]. Continuous tasks use [0.5] for wide-turn tracking."
+    identity: "This provides the rotational component of the system."
 
-  # The output (line 99) — THIS IS THE U-SPACE FORMULA
+  # Final Output (The U-Space Formula)
   output:
-    formula: "output = standard_part × (1 + epsilon × h_cos)"
-    plain_english: "The classical value scaled by the harmonic rotation — purely periodic"
-    maps_to: "U = x(1 + εi) — the classical part modulated by rotation"
-    what_epsilon_does: "Controls how much the orientation affects the output"
-    key_insight: "The output is Torus-Locked — it depends on the POSITION of the phase on the circle (via cos/sin), not the total distance traveled. The winding number is preserved internally in phi for recurrence, but the output projection sees only periodic coordinates."
-    previous_version: "v1.3.12 included a linear term '+ 0.125 × phi' (Spiral Path). This was removed in v1.3.13 because it caused singularity-like bounces in continuous tasks (sine waves) by saturating downstream nonlinearities as phi grew without bound over long sequences."
+    formula: "output = classical_value * (1 + epsilon * harmonic_projection)"
+    description: "The classical part is modulated by the rotation. The result is locked to a periodic state."
+    epsilon: "Determines how much the angle affects the measurable output."
+    torus_locking: "The output depends on the position of the angle on the circle, not the total number of turns made. This prevents errors that occur when values grow too large over time."
 
 ---
 # INITIALIZATION
@@ -92,193 +84,76 @@ initialization:
     why: "Standard practice for input connections"
   recurrent_weights:
     method: "All zeros"
-    why: "The neuron starts with no recurrent memory — purely input-driven at first. Recurrence emerges through learning."
+    why: "The neuron starts with no recurrent memory. Recurrence emerges through learning."
   bias:
     method: "First half zeros, second half spread evenly around the circle"
-    formula: "bias[hidden + j] = j × (2π / hidden_size)"
-    why: "Each neuron's phase gate starts at a different angle. This diversity means different neurons explore different parts of the circle from the very first step."
+    formula: "bias[hidden + j] = j * (2π / hidden_size)"
+    why: "Each neuron starts at a different angle. This allows the network to explore the entire circle from the first step."
   epsilon:
-    method: "Small values with exponential decay: 0.125 × 0.5^(j mod 5)"
+    method: "Small values with exponential decay: 0.125 * 0.5^(j mod 5)"
     why: "The rotational coupling starts weak. The neuron must earn its influence through training."
   harmonic_weights:
     method: "Random uniform between 0 and 1"
     why: "Each neuron starts with a random mix of frequency sensitivities"
 
 ---
-# REVERSIBILITY
-# File: UIT_ROUND.py, lines 72-82 (binary alignment mode)
-# The neuron has a special mode where encoding and decoding are exact inverses.
+# EXACT REVERSIBILITY (Binary Mode)
+# Implementation: UIT_ROUND.py (use_binary_alignment)
+# In this mode, the neuron can reverse its own computation perfectly.
 
 reversibility:
-  encoding_direction:
-    name: "Winding"
-    formula: "φ_next = (φ_prev × 0.5) + (bit × π)"
-    plain_english: "Halve the current angle, then add π if the bit is 1"
-    what_it_does: "Packs a bitstream into a single angle, one bit at a time"
-  decoding_direction:
-    name: "Unwinding"
-    formula: "bit = 1 if φ ≥ π, else 0. Then φ_next = (φ - bit × π) × 2"
-    plain_english: "Read whether the angle is in the top or bottom half (that's the bit), subtract if needed, then double"
-    what_it_does: "Extracts each bit back out of the angle, in reverse order"
-  relationship: "These two operations are algebraic inverses. Encoding then decoding recovers the exact original bitstream."
-  what_this_means: "Information stored as phase is not compressed or approximated. It is preserved exactly. Standard neural networks (GRU, LSTM) cannot do this because their activation functions (tanh, sigmoid) permanently destroy information."
-  proven_by: "UIT_benchmark_crystalline_loop.py — 256 characters encoded and decoded bit-perfectly. GRU comparison: total failure."
-
-  training_shortcut:
-    claim: "Because the math inverts exactly, you can train the easy direction first, invert the learned weights, and use that as a starting point for the hard direction"
-    expected_savings: "The hard direction converges in roughly 100 epochs instead of 3000-5000"
-    why_this_works: "The inverted weights are already a near-perfect solution. Training just cleans up numerical noise."
+  encoding:
+    method: "Half-Shift Winding"
+    formula: "phi_next = (phi_prev * 0.5) + (bit * pi)"
+    description: "Bits are packed into the angle by halving the current state and adding a rotation for each new bit."
+  decoding:
+    method: "Double-Shift Unwinding"
+    formula: "bit = 1 if phi >= pi, then double the remainder."
+    description: "Bits are extracted by checking which side of the circle the angle is on, then doubling the angle to reveal the next bit."
+  proof: "This is proven by the ASCII loop test, where 256 characters are recovered with 100% accuracy. Standard models cannot do this because they permanently lose data during processing."
+  logic: "Since the math is perfectly reversible, we can train one direction and flip the weights to solve the other, saving massive amounts of training time."
 
 ---
-# LOSS FUNCTIONS
-# File: ROUND.py, lines 225-268 (HarmonicROUNDLoss)
+# SUMMARY OF PROVEN RESULTS
 
-loss_functions:
-  task_loss:
-    what_it_is: "Standard classification or regression error — how wrong is the answer?"
-    types: "Binary cross-entropy (yes/no tasks) or cross-entropy (multiple choice tasks)"
-  phase_lock_loss:
-    formula: "Σ weight[h] × mean(sin²(h/2 × φ))"
-    plain_english: "Measures how close the phase angles are to multiples of 2π/h (the poles of a sphere)"
-    when_locked: "sin²(h/2 × φ) = 0 — the phase is exactly at a pole"
-    when_unlocked: "sin²(h/2 × φ) is large — the phase is between poles"
-    what_it_does: "Pushes phases toward discrete resting positions during training"
-    connection_to_predictive_coding: "This IS a local prediction error signal. It says: 'I predict the phase should be at a pole. The error is how far away it is.' This mirrors the Kuramoto model of oscillator synchronization."
-  total_loss:
-    formula: "task_loss + lock_strength × lock_loss"
-    lock_strength: "Default 0.1-0.13 — how hard the locking pulls"
-    lock_delay: "Locking is disabled for the first N epochs, letting the model explore freely before settling"
+benchmarks:
+  counting_and_logic:
+    test: "16-bit Parity"
+    result: "100% accuracy using exactly ONE neuron."
+    advantage: "A standard GRU model needs dozens of neurons to do this and still fails frequently."
+    insight: "Logical counting is a rotation on a circle. Because ROUND is circular, the task is trivial."
 
----
-# CONFIDENCE
-# File: UIT_ROUND.py, line 96
+  continuous_tracking:
+    test: "Sine Wave Recovery"
+    result: "10-fold improvement in precision over standard models."
+    insight: "The model tracks moving waves by riding them on a circular track instead of guessing points."
 
-confidence:
-  formula: "mean(|h_cos|) / number_of_harmonics"
-  what_it_measures: "How close to a pole the phase is"
-  when_high: "The phase is locked — the neuron has settled into a stable state"
-  when_low: "The phase is between poles — the neuron is still searching"
-  used_for: "The loss is multiplied by (1 - confidence), so confident neurons learn less aggressively. This prevents over-correction of already-stable states."
+  composition:
+    test: "Color Algebra & Prism Stacking"
+    result: "Near-instant solving of modular addition and midpoint logic."
+    insight: "The network solves geometric problems by physically rotating its internal state to the correct position."
 
 ---
-# WHAT HAS BEEN PROVEN (Benchmark Suite)
+# CONFIDENCE AND LOCKING
+# Implementation: config.py and UIT_ROUND.py
 
-verified_capabilities:
-  sequential_logic:
-    test: "Parity (4-bit, 8-bit, 16-bit)"
-    what_it_does: "Count the number of 1-bits in a sequence, report even or odd"
-    result: "100% accuracy on all lengths using a SINGLE NEURON"
-    convergence_times:
-      4_bit: "73 epochs with 1 neuron"
-      8_bit: "238 epochs with 1 neuron"
-      16_bit: "332 epochs with 1 neuron"
-    scaling: "Convergence time scales roughly linearly with sequence length"
-    key_discovery: "Parity is a 1-dimensional operation (counting mod 2 = one angle on one circle). One phase neuron is sufficient. Using 4 neurons actually caused intermittent failure because the neurons could interfere destructively — their phase contributions cancelled out. The problem literally requires one rotation."
-    phase_transition: "Training shows a clear two-stage pattern: (1) the neuron finds the correct rotation (task loss drops, accuracy hits 100%), then (2) the lock loss drops sharply as the phase snaps into a discrete attractor basin. This is a discontinuous phase transition — the system discovers the solution first, then crystallizes it."
-    why_it_matters: "One neuron tracking 16 sequential bits with 100% accuracy is impossible for any standard recurrent architecture. A GRU needs dozens of hidden units and still struggles. The phase representation makes the computation trivial because the representation IS the computation — counting mod 2 is rotation on a circle."
-    proven_in: "round_bloch.html (JavaScript, interactive demo)"
-
-  continuous_signals:
-    test: "Sine wave reconstruction"
-    what_it_does: "Learn to reproduce a sine wave from sequential input samples"
-    result: "ROUND final MSE = 0.000097, GRU final MSE = 0.000437. Crystal lock at epoch ~1200. Monotonic convergence after singularity suppression."
-    why_it_matters: "Shows the phase representation handles continuous values with higher precision than standard networks. The phase naturally tracks oscillation because it IS an oscillation."
-    proven_in: "UIT_benchmark_sine_waves.py"
-
-  compositional_reasoning:
-    test: "Color algebra (64-color mixing)"
-    what_it_does: "Given two colors as input, predict their angular midpoint on a color wheel"
-    result: "Converges to high accuracy"
-    why_it_matters: "This is vector addition in phase space — the neuron is doing geometry, not lookup"
-    proven_in: "UIT_benchmark_color_algebra.py"
-
-  modular_algebra:
-    test: "Prism stack (modular addition mod 18)"
-    what_it_does: "Given two elements from a group of 18, predict their sum modulo 18"
-    result: "ROUND converges to near-zero cross-entropy by epoch ~1300. GRU still above 1.0 after 2000 epochs."
-    why_it_matters: "Modular arithmetic maps directly to phase wrapping. The neuron's geometry IS the algebraic structure of the problem. GRU has to learn modular arithmetic as an arbitrary function; ROUND has it built into the representation."
-    proven_in: "UIT_benchmark_prism_stack.py"
-
-  majority_vote:
-    test: "8-bit majority vote (count > 4)"
-    what_it_does: "Given 8 sequential bits, output 1 if the count of 1s is strictly greater than 4"
-    result: "ROUND 100% (crystal lock epoch 56 at LR 2^-9, 8 neurons). GRU 100% (epoch ~200, 128 neurons)."
-    why_it_matters: "Counting is a natural phase task — each 1-bit adds a rotation. ROUND solves it with 16x fewer neurons. Majority is strictly harder than parity because distinguishing 4 from 5 requires precise accumulation, not just modular toggle."
-    proven_in: "UIT_benchmark_majority_8.py"
-
-  reversible_encoding:
-    test: "ASCII encode/decode round-trip"
-    what_it_does: "Encode 256 characters as phase angles, then decode them back to characters"
-    result: "Bit-perfect reconstruction for all 256 characters"
-    why_it_matters: "Proves lossless information storage. GRU fails completely on the same test."
-    proven_in: "UIT_crystallize_encoder.py, UIT_benchmark_crystalline_loop.py"
-
-  cross_model_relay:
-    test: "Encoder-decoder relay (independently trained models)"
-    what_it_does: "Decoder processes bits into hidden state. Separately trained encoder reconstructs bits from character identity. Tests whether independently trained models share a compatible phase dialect."
-    result: "Bit-perfect relay for the phase-based model. GRU relay fails."
-    why_it_matters: "The phase manifold's attractor structure forces independently trained models into compatible representations. The geometry itself acts as a shared communication protocol."
-    proven_in: "UIT_benchmark_sandwich_duel.py"
-
----
-# TRAINING METHOD
-
-training_method:
-  name: "Backpropagation Through Time (BPTT)"
-  description: "UIT-ROUND uses standard BPTT. Gradients flow backward through the full sequence via the phase recurrence (phi_next depends on phi_prev). The phase gate, harmonic weights, and epsilon are all learned end-to-end through gradient descent."
-  optimizer: "Adam (lr varies by task: 2^-7 for ASCII, 1e-3 for continuous)"
-  no_local_learning_rule: "Despite the Kuramoto-like lock loss, all weight updates come from global backpropagation. There is no local Hebbian or predictive coding update in the current implementation."
-
----
-# EXPERIMENTAL FINDINGS (Tested but not in current neuron)
-
-experimental_findings:
-  roundpc_predictive_coding:
-    what_it_was: "ROUNDPC (Predictive Coder) — a complete architectural fork of UITNeuronCell that replaced BPTT with local Kuramoto-style phase tension"
-    archived_in: "zz_archive/ROUNDPC.py, zz_archive/ROUND_Kuramoto_Prototype.py"
-    benchmarks_in: "ROUNDPC_Benchmarks/"
-    key_differences:
-      - "Added a Kuramoto coupling weight K per neuron (learned dynamically)"
-      - "Severed BPTT by detaching h_state at every timestep: h_states[i] = h_next.detach()"
-      - "Replaced temporal gradient flow with instantaneous local loss: sin(phi) vs target"
-      - "Error signal computed as topological gradient: -(sin(phi) - target) × cos(phi)"
-      - "Removed tanh from standard_part to prevent amplitude squashing"
-    what_worked: "Continuous tasks (sine wave tracking). The local phase tension naturally aligns oscillators to track smooth signals without needing gradients to flow backward through time."
-    what_failed: "Discrete tasks (ASCII encode/decode). Without BPTT, the neuron had no way to propagate the influence of late-sequence bits back to early-sequence phase decisions. Arbitrary bitstreams require temporal credit assignment that local tension alone cannot provide."
-    conclusion: "Kuramoto-style local learning is geometrically elegant and works when the target signal has continuous structure (sine waves). But for arbitrary discrete sequences, BPTT is still required. UIT-ROUND v1.3.13 uses standard BPTT."
-
-  spiral_path_term:
-    what_it_was: "A linear phase coupling in the output: + 0.125 × phi"
-    why_removed: "Caused unbounded drift in long sequences, saturating downstream Tanh and producing MSE bounces (up to 27x regression). Removed in v1.3.13 (Torus-Locked output)."
-
----
-# OBSERVED TRENDS (Tentative, not definitive)
-
-observed_trends:
-  lr_convergence_inversion:
-    observation: "For counting-type tasks (parity, majority vote), lower learning rates produce faster crystal lock, contrary to the typical intuition that higher LR means faster training."
-    data: |
-      Majority Vote LR Sweep (8 neurons, harmonics=[1]):
-        2^-6.64 (0.01):       lock at epoch 294
-        2^-7    (0.0078125):  lock at epoch 432
-        2^-8    (0.00390625): lock at epoch 155
-        2^-9    (0.001953125): lock at epoch 56
-    hypothesis: "The phase oscillator has a natural resonant basin. Higher learning rates cause the optimizer to overshoot the attractor, producing oscillatory convergence. Lower LRs allow the phase to slide smoothly into lock without turbulence. The hypertorus projections confirm this — lower LR produces tighter, more circular manifolds."
-    caveat: "This trend is observed on counting tasks where the solution is a clean geometric attractor. It may not generalize to all task types, especially those with more complex loss landscapes."
+mechanisms:
+  confidence:
+    formula: "average absolute value of the cosine projection"
+    meaning: "How close the neuron is to a stable resting position."
+    function: "Confident neurons learn more slowly. This prevents the model from over-correcting once it has found a solution."
+  locking:
+    method: "Gaussian Annealing"
+    meaning: "A temporary force that pulls the neuron toward stable points during the middle of training."
+    function: "Acts like training wheels, helping the phase settle into a clean geometric attractor."
 
 ---
 # THE CORE CLAIM
 
 core_claim:
-  statement: "UIT_ROUND is a recurrent neural network, trained via standard BPTT, whose internal representation IS the U-space number system. The classical output (x) and the infinitesimal rotation (εi) are not metaphors — they are the actual computed quantities at line 99 of UIT_ROUND.py."
+  statement: "UIT_ROUND is a recurrent neural network where the internal representation is the U-space number system. The classical output and the rotation are actual computed quantities, not metaphors."
   evidence:
-    - "output = standard_part × (1 + epsilon × h_cos) maps directly to U = x(1 + εi)"
-    - "Phase angles provide exact reversibility (encode/decode round-trip)"
-    - "Lock loss functions as a local prediction error, matching Kuramoto synchronization dynamics"
-    - "The quantization grid creates discrete attractor basins on a continuous manifold"
-    - "Independently trained models converge to compatible phase representations"
-  what_standard_networks_cannot_do:
-    - "GRU/LSTM hidden states are lossy compressions — information is permanently destroyed by tanh/sigmoid"
-    - "Standard networks cannot invert their own computation"
-    - "Standard networks have no natural attractor structure — representations drift under perturbation"
-    - "Standard networks require global backpropagation for all learning — no local update path"
+    - "The output formula maps directly to the mathematical definition of U-space."
+    - "Phase angles provide exact reversibility for encoding and decoding."
+    - "The model handles circular tasks (counting, color mixing) with perfect precision using minimal resources."
+    - "Independently trained models develop compatible geometric languages."

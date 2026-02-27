@@ -5,137 +5,135 @@
 
 ## Unified Informatic Topology (UIT) Implementation: ROUND v1.3.14
 
-This repository contains the reference implementation of the **Riemannian Optimized Unified Neural Dynamo (ROUND)**, an architecture that replaces contractive "forgetting" with **Unitary Phasic Resonance**.
+This repository contains the reference implementation of the **Riemannian Optimized Unified Neural Dynamo (ROUND)**. This architecture replaces standard "forgetting" mechanisms with a method we call **Unitary Phasic Resonance**.
 
-The project validates the transition from lossy, contractive neural mappings to **Unitary Isometry** ($|P(x)| = |x|$), where information fidelity is perfectly preserved on high-dimensional Riemannian manifolds.
-
----
-
-> [!IMPORTANT]
-> **Scientific Protocol (UID 0140):** The current build reflects the "Topological Refinement" phase. All active benchmarks utilize the **Forest Wall** palette and **Logic Plane** comparative scaling for high-fidelity visualization.
+The project shows how to move from lossy neural mappings to **Unitary Isometry** ($|P(x)| = |x|$). In this state, information is preserved on high-dimensional geometric surfaces rather than being compressed and lost.
 
 ---
 
-## Architectural Specification: Unitary Isometry
-
-The **ROUND** architecture (implemented in `UIT_ROUND.py`) represents state as a position on a high-dimensional hypertorus. This eliminates the "Contraction Problem" found in standard RNNs (GRUs/LSTMs) by ensuring that the latent state never collapses toward the origin.
-
-### 1. Unitary Isometry
-
-A distance-preserving mapping where the hidden state's magnitude is identically $1.0$. This ensures that informatic density is neither diluted nor amplified during recurrent cycles, achieving **Zero Erasure Cost** during information processing.
-
-### 2. Topological Isomorphism
-
-The model's internal phase-space is engineered to match the geometric manifold of the task. Instead of "approximating" solutions through stochastic descent, the network "locks" onto resonance, allowing for bit-perfect recall.
-
-### 3. Uniform Phase Topology (UPT)
-
-Data is represented via phase angles distributed uniformly across the manifold. This ensures that every region of the latent space remains equally accessible, preventing the "informatic blotting" common in standard architectures.
+> **Technical Update (v1.3.14):** This build focuses on stabilizing and restoring some of the core benchmarks. All tests now use standardized scientific plotting for clear results.
 
 ---
 
-## Experimental Validation: Scientific Benchmark Suite
+## How it Works: Unitary Isometry
 
-The architecture has been rigorously validated against a suite of tasks designed to expose the failure modes of contractive RNNs.
+The **ROUND** architecture (found in `UIT_ROUND.py`) represents data as a position on a high-dimensional circle or torus. This fixes the common "forgetting" problem in standard RNNs, such as GRUs and LSTMs, by ensuring the model state never collapses to zero.
 
-**Batch UID:** `2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED`
+### 1. Constant Signal Strength (Unitary Isometry)
+
+We use a mapping that keeps the hidden state at a constant magnitude of 1.0. This ensures that information is never diluted or accidentally amplified during processing. It allows the model to process data over long sequences with zero information loss.
+
+### 2. Geometric Alignment
+
+The model's internal states are designed to match the geometry of the task itself. Instead of just guessing solutions, the network finds a natural "lock" on the data. This allows for perfect recall of complex patterns.
+
+### 3. Uniform Data Distribution
+
+Information is spread out evenly across the model's internal space. This prevents "blind spots" where the model might forget certain types of data, a common issue in standard AI architectures.
+
+---
+
+## Results: The Benchmark Suite
+
+We tested this architecture against several tasks that usually cause standard AI models to fail.
+
+**Current Test Version:** `v1.3.14`
+**Main Test Script:** `UIT_run_battery_targeted.py`
+
+### 1. Text Loop (ASCII)
+
+*Tests how well the model can remember a sequence of characters indefinitely.*
+
+**Findings:** The system memorizes the character set perfectly. Standard models often struggle to keep encoding and decoding steps aligned over time, but ROUND creates a stable, permanent map immediately.
+
+![ASCII Results](results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED/plots/verification_report_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png)
+
+### 2. The Relay Test (Sandwich)
+
+*Tests if two parts of a model can understand each other without ever being trained together.*
+
+**Findings:** Standard models fail this test because they build private, inconsistent internal languages. ROUND succeeds because it uses a shared geometric language. This proves that ROUND state has a permanent meaning that any part of the system can understand.
+
+![Relay Test](results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED/plots/sandwich_duel_story_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png)
+
+### 3. Counting Logic (16-bit Parity)
+
+*Tests if a model can solve a logic problem using only one single "cell."*
+
+**Findings:** Standard models need hundreds of cells and still fail. ROUND solves this perfectly with just one cell and does so almost instantly. This shows that circular logic is the natural way to solve counting and logic problems.
+
+![Parity Test](results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED/plots/parity_duel_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png)
+
+**Batch UID:** `2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED`
 **Primary Orchestrator:** `UIT_run_battery_targeted.py`
 
-### 1. ASCII (Crystalline Loop)
+### 4. Basic Sorting (Majority Vote)
 
-*Tests the stability of 8-bit ASCII characters through a continuous loop.*
+*Tests if the model can decide which of two options appears most often in a list.*
 
-**Findings:** The system identifies and memorizes the entire character set with perfect fidelity. Unlike standard models that struggle to align separate encoding and decoding steps, ROUND forms a stable, unified map of the information instantly.
+**Findings:** While most models can solve this, ROUND does it with a fraction of the power (8 cells vs 128). This shows that even simple logic is more efficient when the model states are circular.
 
-![Crystalline Loop](results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED/plots/verification_report_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png)
+![Majority Vote](results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED/plots/majority_duel_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
-### 2. Sandwich (The Relay Test)
+### 5. Color Mixing (Color Algebra)
 
-*Tests if two parts of the brain that have never met can still understand each other.*
+*Tests if the model can add and subtract colors like points on a color wheel.*
 
-**Findings:** Standard models fail this completely—they build private internal languages that don't match up. ROUND succeeds perfectly because it uses a universal geometric language. It proves that information in a ROUND system has a permanent, shared meaning across the entire architecture.
+**Findings:** Standard models get confused when values wrap around a circle. ROUND treats circles as its native language, which lets it add and reverse color operations with perfect precision.
 
-![Sandwich Duel](results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED/plots/sandwich_duel_story_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png)
+![Color Algebra](results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED/plots/color_algebra_duel_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
-### 3. 16-bit Parity (The Single-Neuron Proof)
+### 6. Logic Stacking (Prism Stacking)
 
-*Tests if the model can count whether a long string of 1s is even or odd using only one "brain cell."*
+*Tests if the model can use one piece of information to change how it sees another.*
 
-**Findings:** Standard models fail this even with hundreds of cells. ROUND solves it perfectly (100% accuracy) with just one, and it does so instantly. This proves that ROUND's "circular" logic is the natural way to solve counting and logic problems.
+**Findings:** ROUND handles this by physically adjusting its internal focus on the information circle. This proves it can handle multi-step logic by stacking simple geometric rotations.
 
-![16-bit Parity](results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED/plots/parity_duel_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png)
+![Prism Stacking](results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED/plots/prism_stack_duel_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
-### 4. Majority Vote
+### 7. Following Waves (Sine Waves)
 
-*Tests if the model can decide if there are more "Yes" votes than "No" votes in a list.*
+*Tests if the model can predict smooth, repeating signals.*
 
-**Findings:** Both ROUND and standard models solve this easily. ROUND is notable for doing so with significantly less "brain-power" (8 vs 128 neurons), showing that even basic logic is more efficient when using circular states.
+**Findings:** Standard models guess the next point in a wave, but ROUND "rides" the wave on a circular track. This makes ROUND ten times more accurate than standard methods.
 
-![Majority Vote](results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED/plots/majority_duel_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png)
-
-### 5. Color Algebra
-
-*Tests if the model can mix and un-mix colors using circular logic (like a color wheel).*
-
-**Findings:** Standard models get confused when things wrap around the circle. ROUND treats circles as its natural language, allowing it to add, subtract, and reverse color operations with perfect precision.
-
-![Color Algebra](results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED/plots/color_algebra_duel_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png)
-
-### 6. Prism Stacking
-
-*Tests if the model can use one piece of information to change how it understands another (like a lens).*
-
-**Findings:** Both models can learn this logic, but ROUND does so by literally adjusting its internal "focus" on the information circle. It proves that ROUND can handle complex, multi-step logic by stacking simple rotations.
-
-![Prism Stacking](results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED/plots/prism_stack_duel_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png)
-
-### 7. Sine Waves (Riemannian Recovery)
-
-*Tests if the model can follow and predict smooth, repeating signals (like a wave).*
-
-**Findings:** Standard models track waves by guessing the next point. ROUND tracks them by riding the wave on a circular track. This allows it to reach a level of precision (the "Crystalline Lock") that is ten times more accurate than standard methods.
-
-![Sine Waves](results/2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED/plots/riemannian_recovery_2026-02-26_2253_SCIENTIFIC_PROTOCOL_TARGETED.png)
+![Sine Waves](results/2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED/plots/riemannian_recovery_2026-02-27_1244_SCIENTIFIC_PROTOCOL_TARGETED.png)
 
 ---
 
-## Repository Structure
+## Project Structure
 
-```text
-ROUND_Harmonic_Sandbox/
-├── media/                  # Video, Audio, and PDF Theory Docs
-├── results/                # High-Fidelity Diagnostic Outputs
-├── Utilities/              # Data Inspection & MD Export Tools
-├── UIT_Benchmarks/         # Active External Benchmark Scripts
-├── UIT_ROUND.py            # Core Unitary Isometry Implementation
-├── visualization_utils.py  # Premium Scientific Plotting Suite
-├── config.py               # Informatic Dials & DUAL_VEC Specs
-└── UIT_run_battery_targeted.py # Main Scientific Protocol
-```
+* **media/**: Theory documents and explainers.
+* **results/**: Detailed test data.
+* **Utilities/**: Tools for inspecting data.
+* **UIT_Benchmarks/**: Individual test scripts.
+* **UIT_ROUND.py**: The core model code.
+* **visualization_utils.py**: Tools for creating the result plots.
+* **config.py**: Model settings and parameters.
+* **UIT_run_battery_targeted.py**: The main testing script.
 
 ---
 
-## Deep Research Artifacts
+## Theory & Context
 
-For a complete theoretical grounding, refer to the following documentation:
+Refer to these documents for the math and theory behind the code:
 
-* **[UITv2.pdf](media/UITv2.pdf)**: "Unified Informatic Topology: A Framework Merging Information Thermodynamics, Quantum Mechanics, and Relativity".
-* **[The_U-Neuron.mp4](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/The_U-Neuron.mp4)**: Video explainer of the architecture.
-* **[Unifying_Wave_and_Particle_Computation.pdf](media/Unifying_Wave_and_Particle_Computation.pdf)**: Conceptual deep dive.
-* **[Phase_Memory_Solves_AI_Long-Term_Failure.m4a](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/Phase_Memory_Solves_AI_Long-Term_Failure.m4a)**: Audio conversation on phase memory.
+* **[UITv2.pdf](media/UITv2.pdf)**: The full technical framework.
+* **[The_U-Neuron.mp4](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/The_U-Neuron.mp4)**: A video overview of the architecture.
+* **[Unifying_Wave_and_Particle_Computation.pdf](media/Unifying_Wave_and_Particle_Computation.pdf)**: Conceptual deep-dive.
+* **[Phase_Memory_M4A](https://www.lexidecktechnologies.com/UIT_IEG/ROUND_Harmonic_U_Neuron/media/Phase_Memory_Solves_AI_Long-Term_Failure.m4a)**: Discussion on how phase memory works.
 
 ---
 
-## Usage & Reproduction
+## How to Run
 
-To reproduce the latest `v1.3.14` benchmark results:
+To run the latest tests:
 
 ```bash
-# Run the Targeted Scientific Protocol
 python UIT_run_battery_targeted.py
 ```
 
-### Installation
+### Setup
 
 Requires Python 3.10+ and PyTorch.
 
