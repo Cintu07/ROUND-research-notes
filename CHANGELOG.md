@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.3.14] - "Continuous Codec" - 2026-02-26
+
+### Added
+
+- **Continuous Topology Sandbox:** Introduced `CONTINUOUS_CONFIG` to `config.py` explicitly for spatio-temporal tracking benchmarks (Sine Waves).
+- **Geometric Velocity Tracking:** Discovered and implemented a "Zero-Persistence" mode (`persistence=0.0`, `HARMONICS=[0.5]`) for continuous topologies. By severing historical phase accumulation, the neuron bypasses the $2\pi$ wrapping singularity (the "bounce") and effectively learns pure $4\pi$ derivative velocity, solving continuous tracking mathematically without structural rewrites.
+- **Majority Vote Test:** Integrated an 8-bit majority sequence classifier (`UIT_benchmark_majority_8.py`) to the decathlon battery. Validates the architecture's capacity to count sequence density strictly above a threshold (count of 1s > 4) and produce terminal logic, matching the JS ROUND v0.8 interface validation.
+
+### Reverted
+
+- **Winding Numbers:** Re-implemented winding numbers to better handle parity and other complex tasks. Added validations to the JS ROUND 0.8 interface in preparation to update it to the current 1.3.14 setup.
+- **Parity Test:** Reverted to the original parity test implementation from 0.8 and updated to current architecture..
+
+### Fixed
+
+- **Battery Directory Hygiene:** Corrected a legacy recursion bug in `UIT_benchmark_majority_8.py` and `UIT_benchmark_parity_16.py` where output paths were doubly nested (e.g., `results/UID/plots/UID`).
+- **Visual Warnings Handled:** Fixed `plt.Rectangle` syntax in Sandwich Duel and Crystalline Loop (swapped `color` to `facecolor`) to resolve matplotlib collision warnings on transparency overlay.
+- **Parity Shield Stability:** Dropped `PARITY_CONFIG` learning rate from $2^{-7}$ to $2^{-8}$ to prevent a momentary accuracy wobble precisely at the Epoch 200 "Shield Drop" phase transition.
+
 ## [1.0.1-JS] - 2026-02-12
 
 ### Added
